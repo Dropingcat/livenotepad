@@ -31,7 +31,11 @@
 - **AUD-003** — потеря ввода при Enter.
 - **AUD-006** — CSS корзины/правки.
 - **VERIFY-007** — браузерная проверка M2 с артефактами.
-- **M6-PWA-001** — manifest/service worker/иконки, установка на Android — в работе.
+- **M6-PWA-001** — manifest/service worker/иконки, установка на Android, офлайн: **закрыт**.
+  - Manifest `id/start_url/scope "./"`, standalone, иконки 192/512/maskable; SW network-first, offline fallback, `skipWaiting`/`claim`.
+  - 217/217 тестов, `node --check`, PWA-гейт 6/6 на `localhost` и на Pages.
+  - MIME Pages: `manifest.webmanifest` → `application/manifest+json`, `sw.js` → `application/javascript`.
+  - TD-DEV-15/16 закрыты; TD-DEV-17 (точность отчёта) — OPEN, не блокирует.
 
 ### Git / Pages
 - Публичный репозиторий: `https://github.com/Dropingcat/livenotepad`.

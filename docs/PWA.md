@@ -24,7 +24,7 @@
 3. Запустить с иконки: standalone-окно, без адресной строки.
 4. Проверить офлайн: включить авиарежим, закрыть/открыть приложение — лист должен открыться, данные на месте.
 
-LAN-вариант `http://192.168.1.100:8080` — **не secure context**, поэтому установка PWA и service worker доступны только с Pages HTTPS. LAN — для отладки и UI-проверок; IndexedDB у LAN и Pages — разные origin: данные не переносятся автоматически.
+LAN-вариант `http://192.168.1.100:8080` — **не secure context**: `crypto.subtle`/`randomUUID` отсутствуют, install PWA и service worker недоступны. Установка — только с HTTPS (Pages) или `localhost` (тоже secure context). LAN — для отладки и UI-проверок; IndexedDB у LAN и Pages — разные origin: данные не переносятся автоматически.
 
 ## 3. Ограничения (осознанные)
 
