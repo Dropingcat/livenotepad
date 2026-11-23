@@ -1,0 +1,12 @@
+{
+  "name": "livenotepad",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Живой блокнот — alpha",
+  "scripts": {
+    "test": "node --test",
+    "test:due": "node --test test/due-parser.test.js",
+    "dev": "node scripts/serve.js"
+  }
+}

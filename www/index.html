@@ -1,0 +1,1672 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#fafaf7">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1a1a1c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Живой блокнот · alpha v0.3</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+:root {
+  color-scheme: light dark;
+  --bg: #fafaf7; --ink: #1a1a1a; --muted: #8a8a85; --line: #e8e8e3; --accent: #5a5a55;
+  --branch-rabota: #90CAF9; --branch-byt: #B0BEC5; --branch-ljudi: #FFCC80;
+  --branch-zdorovie: #A5D6A7; --branch-ucheba: #CE93D8; --branch-none: #E0E0E0;
+  --overdue: #c94a3a; --due: #c97b3a;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1a1a1c; --ink: #e8e8e3; --muted: #9a9a95; --line: #2a2a2c; --accent: #b0b0ab;
+    --branch-rabota: #42A5F5; --branch-byt: #607D8B; --branch-ljudi: #FFB74D;
+    --branch-zdorovie: #66BB6A; --branch-ucheba: #AB47BC; --branch-none: #555;
+    --overdue: #f08a7a; --due: #e8a06a;
+  }
+}
+html, body {
+  height: 100%; background: var(--bg); color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px; line-height: 1.4; overflow: hidden;
+}
+#app { height: 100%; display: flex; flex-direction: column; max-width: 560px; margin: 0 auto; position: relative; }
+header { padding: 20px 20px 6px; flex-shrink: 0; position: relative; }
+.date-title { font-size: 22px; font-weight: 600; letter-spacing: -0.3px; }
+.date-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.header-tools { position: absolute; top: 20px; right: 16px; display: flex; gap: 6px; }
+.tool-btn { font-size: 10px; color: var(--muted); background: none; border: 1px solid var(--line); padding: 4px 8px; border-radius: 12px; cursor: pointer; font-family: inherit; }
+.tool-btn.active { color: var(--ink); border-color: var(--accent); }
+.input-wrap { padding: 12px 20px 8px; flex-shrink: 0; }
+#draft { width: 100%; border: none; background: transparent; font-size: 17px; color: var(--ink); font-family: inherit; outline: none; resize: none; padding: 8px 0; border-bottom: 1px solid var(--line); }
+#draft::placeholder { color: var(--muted); font-style: italic; }
+.input-hint { font-size: 11px; color: var(--muted); margin-top: 6px; min-height: 14px; font-family: monospace; display: flex; gap: 6px; flex-wrap: wrap; }
+.hint-chip { padding: 1px 6px; border: 1px solid var(--line); border-radius: 8px; font-size: 10px; }
+.hint-chip.due { color: var(--due); border-color: var(--due); }
+.list-wrap { flex: 1; overflow-y: auto; padding: 4px 0 140px; -webkit-overflow-scrolling: touch; }
+.empty { padding: 60px 20px; text-align: center; color: var(--muted); font-size: 15px; line-height: 1.6; }
+.empty .greeting { font-size: 17px; color: var(--ink); margin-bottom: 6px; }
+.overdue-block { margin: 8px 20px; padding: 10px 12px; background: rgba(201, 74, 58, 0.06); border-left: 2px solid var(--overdue); border-radius: 6px; }
+.overdue-head { font-size: 11px; color: var(--overdue); font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center; }
+.overdue-head .chev { transition: transform 0.2s; }
+.overdue-block.expanded .chev { transform: rotate(90deg); }
+.overdue-item { font-size: 13px; color: var(--ink); padding: 3px 0; display: flex; justify-content: space-between; gap: 8px; cursor: pointer; }
+.overdue-item .due-label { color: var(--overdue); font-size: 11px; font-family: monospace; flex-shrink: 0; }
+.overdue-more { font-size: 11px; color: var(--muted); margin-top: 4px; cursor: pointer; text-decoration: underline; }
+.section-head { padding: 14px 20px 4px; font-size: 11px; color: var(--muted); letter-spacing: 0.5px; }
+.note { display: flex; align-items: flex-start; padding: 11px 20px; position: relative; transition: transform 0.25s ease, opacity 0.25s ease; touch-action: pan-y; cursor: pointer; }
+.note.closed { opacity: 0.55; }
+.note.closed .note-text { text-decoration: line-through; color: var(--muted); }
+.note.swiping { transition: none; }
+.note.deleting { opacity: 0; transform: translateX(-100%); }
+.note-branch { width: 4px; min-height: 22px; margin-right: 12px; margin-top: 2px; flex-shrink: 0; }
+.note-body { flex: 1; min-width: 0; }
+.note-text { font-size: 16px; line-height: 1.4; word-wrap: break-word; }
+.note-due { font-size: 11px; color: var(--muted); margin-top: 3px; font-family: monospace; }
+.note-due.overdue { color: var(--overdue); font-weight: 600; }
+.note-diag { font-size: 10px; color: var(--muted); margin-top: 4px; font-family: monospace; display: none; }
+body.diag-on .note-diag { display: block; }
+.note-diag .tag { display: inline-block; padding: 1px 5px; border: 1px solid var(--line); border-radius: 3px; margin-right: 4px; }
+.note-lifetime { font-size: 9px; color: var(--muted); margin-top: 2px; font-family: monospace; font-style: italic; }
+.swipe-bg { position: absolute; top: 0; right: 0; bottom: 0; width: 100%; background: #e8d4d0; display: flex; align-items: center; justify-content: flex-end; padding-right: 24px; color: var(--overdue); font-size: 13px; opacity: 0; pointer-events: none; }
+.note.swiping .swipe-bg { opacity: 1; }
+.girl { position: fixed; bottom: 20px; right: 20px; width: 240px; background: var(--bg); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); display: flex; gap: 10px; align-items: flex-start; opacity: 0; transform: translateY(20px) scale(0.9); transition: opacity 0.3s, transform 0.3s; pointer-events: none; z-index: 100; }
+.girl.visible { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+.girl-avatar { width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%; background: linear-gradient(135deg, #FFCC80, #FFB74D); display: flex; align-items: center; justify-content: center; font-size: 24px; position: relative; }
+.girl-avatar::after { content: ''; position: absolute; inset: -3px; border-radius: 50%; border: 1.5px dashed #FFCC80; animation: spin 8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.girl-text { flex: 1; font-size: 13px; line-height: 1.4; color: var(--ink); }
+.girl-text .name { font-weight: 600; color: var(--due); }
+.girl-countdown { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: var(--line); border-radius: 0 0 16px 16px; overflow: hidden; }
+.girl-countdown-bar { height: 100%; background: var(--due); width: 100%; transition: width 3.5s linear; }
+.girl.visible .girl-countdown-bar { width: 0%; }
+.girl-undo { display: block; margin-top: 6px; font-size: 11px; color: var(--muted); background: none; border: none; cursor: pointer; font-family: inherit; padding: 2px 0; text-decoration: underline; }
+.branch-menu { position: fixed; z-index: 150; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.15); min-width: 200px; display: none; }
+.branch-menu.visible { display: block; }
+.branch-menu-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+.branch-menu-item:hover { background: rgba(128,128,128,0.1); }
+.branch-menu-item.current { font-weight: 600; }
+.branch-menu-swatch { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+.branch-menu-item.sleeping { opacity: 0.5; }
+.branch-menu-item.sleeping .branch-sleep { margin-left: auto; font-size: 10px; color: var(--muted); letter-spacing: 0.3px; }
+.branch-menu-item.clear { color: var(--muted); border-top: 1px solid var(--line); margin-top: 4px; padding-top: 10px; }
+footer { padding: 8px 20px 14px; font-size: 10px; color: var(--muted); text-align: center; flex-shrink: 0; border-top: 1px solid var(--line); }
+.toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-60px); background: var(--ink); color: var(--bg); padding: 8px 16px; border-radius: 20px; font-size: 13px; opacity: 0; transition: opacity 0.3s, transform 0.3s; z-index: 300; pointer-events: none; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.corr-pending { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 6px 14px; border-radius: 16px; font-size: 11px; font-family: monospace; opacity: 0; transition: opacity 0.3s; z-index: 90; pointer-events: none; }
+.corr-pending.show { opacity: 1; }
+
+/* МОНИТОР — ПОЛНОЭКРАННЫЙ */
+.monitor-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  z-index: 400; display: none;
+  backdrop-filter: blur(2px);
+}
+.monitor-backdrop.visible { display: flex; }
+.monitor {
+  background: var(--bg); width: 100%; height: 100%;
+  display: flex; flex-direction: column;
+  animation: slideUp 0.25s ease;
+}
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.monitor-header {
+  padding: 16px 20px 12px; border-bottom: 1px solid var(--line);
+  display: flex; justify-content: space-between; align-items: center;
+  flex-shrink: 0;
+}
+.monitor-title { font-size: 16px; font-weight: 600; }
+.monitor-close {
+  background: none; border: none; font-size: 22px; cursor: pointer;
+  color: var(--muted); padding: 0 4px; line-height: 1;
+}
+.monitor-tabs {
+  display: flex; border-bottom: 1px solid var(--line);
+  flex-shrink: 0; overflow-x: auto;
+}
+.monitor-tab {
+  padding: 10px 14px; background: none; border: none;
+  color: var(--muted); font-size: 12px; cursor: pointer;
+  font-family: inherit; border-bottom: 2px solid transparent;
+  white-space: nowrap;
+}
+.monitor-tab.active { color: var(--ink); border-bottom-color: var(--accent); }
+.monitor-body {
+  flex: 1; overflow-y: auto; padding: 12px 16px 20px;
+  -webkit-overflow-scrolling: touch;
+}
+.monitor-body::-webkit-scrollbar { width: 4px; }
+.monitor-body::-webkit-scrollbar-thumb { background: var(--line); border-radius: 2px; }
+.monitor-footer {
+  padding: 10px 16px; border-top: 1px solid var(--line);
+  display: flex; gap: 8px; flex-wrap: wrap; flex-shrink: 0;
+}
+.monitor-btn {
+  padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--ink); font-size: 12px;
+  cursor: pointer; font-family: inherit;
+}
+.monitor-btn:hover { border-color: var(--accent); }
+.monitor-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.monitor-btn.danger { color: var(--overdue); border-color: var(--overdue); }
+
+.mon-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+.mon-stat { background: var(--line); border-radius: 8px; padding: 10px; text-align: center; }
+.mon-stat-v { font-size: 18px; font-weight: 700; color: var(--ink); }
+.mon-stat-l { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+.mon-section-title { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin: 12px 0 6px; font-weight: 600; }
+.mon-item { background: rgba(128,128,128,0.05); border-radius: 6px; padding: 8px 10px; margin-bottom: 6px; font-size: 12px; font-family: monospace; line-height: 1.5; border-left: 3px solid var(--line); word-break: break-word; }
+.mon-item .k { color: var(--muted); }
+.mon-item .v { color: var(--ink); }
+.mon-item .tag { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 10px; margin-right: 4px; }
+.mon-item .tag.confirmed { background: rgba(110,231,183,0.2); color: #059669; }
+.mon-item .tag.provisional { background: rgba(251,191,36,0.2); color: #b45309; }
+.mon-item .tag.candidate { background: rgba(156,163,175,0.2); color: var(--muted); }
+.mon-item .tag.create { background: rgba(59,130,246,0.15); color: #2563eb; }
+.mon-item .tag.complete { background: rgba(16,185,129,0.15); color: #047857; }
+.mon-item .tag.correct { background: rgba(245,158,11,0.15); color: #b45309; }
+.mon-item .tag.reopen { background: rgba(139,92,246,0.15); color: #6d28d9; }
+.mon-empty { padding: 30px 20px; text-align: center; color: var(--muted); font-size: 13px; }
+.mon-filter { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+.mon-filter-btn { padding: 4px 10px; border-radius: 12px; border: 1px solid var(--line); background: none; color: var(--muted); font-size: 11px; cursor: pointer; font-family: inherit; }
+.mon-filter-btn.active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.mon-search { width: 100%; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font-size: 12px; font-family: monospace; margin-bottom: 10px; outline: none; }
+.mon-search:focus { border-color: var(--accent); }
+.audit-json { width: 100%; min-height: 180px; margin-top: 6px; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font-family: monospace; font-size: 11px; line-height: 1.4; resize: vertical; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="date-title" id="dateTitle">Сегодня</div>
+    <div class="date-sub" id="dateSub"></div>
+    <div class="header-tools">
+      <button class="tool-btn" id="monitorBtn" title="Сервисный монитор">📊</button>
+      <button class="tool-btn" id="settingsBtn">⚙</button>
+    </div>
+  </header>
+  <div class="input-wrap">
+    <textarea id="draft" rows="1" placeholder="Жду задачи. Лист открыт, места много."></textarea>
+    <div class="input-hint" id="inputHint"></div>
+  </div>
+  <div class="list-wrap" id="list"></div>
+  <footer id="footer">Живой блокнот · alpha v0.3 · лист закроется в полночь</footer>
+</div>
+
+<div class="girl" id="girl">
+  <div class="girl-avatar">🌿</div>
+  <div class="girl-text">
+    <span class="name">Листик</span> говорит:<br>
+    <span id="girlPhrase">Оно сейчас пропадёт…</span>
+    <button class="girl-undo" id="girlUndo">вернуть</button>
+  </div>
+  <div class="girl-countdown"><div class="girl-countdown-bar" id="girlBar"></div></div>
+</div>
+
+<div class="branch-menu" id="branchMenu"></div>
+<div class="corr-pending" id="corrPending"></div>
+<div class="toast" id="toast"></div>
+
+<div class="monitor-backdrop" id="monitorBackdrop">
+  <div class="monitor">
+    <div class="monitor-header">
+      <div class="monitor-title">📊 Сервисный монитор</div>
+      <button class="monitor-close" id="monitorClose">×</button>
+    </div>
+    <div class="monitor-tabs">
+      <button class="monitor-tab active" data-tab="overview">Обзор</button>
+      <button class="monitor-tab" data-tab="notes">Заметки</button>
+      <button class="monitor-tab" data-tab="learning">Обучение</button>
+      <button class="monitor-tab" data-tab="logs">Логи</button>
+    </div>
+    <div class="monitor-body" id="monitorBody"></div>
+    <div class="monitor-footer" id="monitorFooter"></div>
+  </div>
+</div>
+
+<script type="module">
+import { TUNING, BRANCHES, BRANCH_KEYS } from './js/constants.js';
+import { Tokenizer } from './js/stemmer.js';
+import { SeedsClassifier } from './js/classifier.js';
+import { DueParser } from './js/due-parser.js';
+import { DueState, DueStateCalculator, isOverdue } from './js/due-state.js';
+import { filterLiveSheet, filterDeletedToday } from './js/live-sheet.js';
+import { branchStatuses } from './js/branches.js';
+import { nextMidnight, startOfDay } from './js/time.js';
+import { applyTextEdit } from './js/note-edit.js';
+import { isDuplicateAdd } from './js/dedup.js';
+import { validateImport, planImport } from './js/import.js';
+import { promTx, applyMergePlan, readSnapshot } from './js/idb.js';
+import {
+  makeEvent, errorEvent, createSessionId, getOrCreateDeviceId,
+  truncateText, buildAuditExport, createFallbackQueue, flushAuditQueue, readAuditLogs, DEFAULT_FALLBACK_KEY
+} from './js/audit.js';
+
+const APP_VERSION = 'alpha v0.3';
+
+const DB = (() => {
+  let db = null;
+  return {
+    async init() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open('livenotepad', 1);
+        req.onupgradeneeded = e => {
+          const d = e.target.result;
+          if (!d.objectStoreNames.contains('notes')) {
+            const ns = d.createObjectStore('notes', { keyPath: 'id' });
+            ns.createIndex('completedAt', 'completedAt');
+            ns.createIndex('deletedAt', 'deletedAt');
+          }
+          if (!d.objectStoreNames.contains('word_evidence')) d.createObjectStore('word_evidence', { keyPath: ['stem', 'branch'] });
+          if (!d.objectStoreNames.contains('word_meta')) d.createObjectStore('word_meta', { keyPath: 'stem' });
+          if (!d.objectStoreNames.contains('training_log')) d.createObjectStore('training_log', { keyPath: 'id', autoIncrement: true });
+        };
+        req.onsuccess = e => { db = e.target.result; resolve(db); };
+        req.onerror = e => reject(e.target.error);
+        req.onblocked = () => reject(new Error('DB blocked'));
+      });
+    },
+    isReady() { return db !== null; },
+    async getAllNotes() { if (!db) throw new Error('DB not initialized'); const tx = db.transaction('notes', 'readonly'); return promTx(tx, tx.objectStore('notes').getAll()); },
+    async putNote(note) { if (!db) throw new Error('DB not initialized'); const tx = db.transaction('notes', 'readwrite'); return promTx(tx, tx.objectStore('notes').put(note)); },
+    async getAllEvidence() { if (!db) throw new Error('DB not initialized'); const tx = db.transaction('word_evidence', 'readonly'); return promTx(tx, tx.objectStore('word_evidence').getAll()); },
+    async putEvidence(e) { if (!db) throw new Error('DB not initialized'); const tx = db.transaction('word_evidence', 'readwrite'); return promTx(tx, tx.objectStore('word_evidence').put(e)); },
+    async deleteEvidence(key) { if (!db) throw new Error('DB not initialized'); const tx = db.transaction('word_evidence', 'readwrite'); return promTx(tx, tx.objectStore('word_evidence').delete(key)); },
+    async getAllMeta() { if (!db) throw new Error('DB not initialized'); const tx = db.transaction('word_meta', 'readonly'); return promTx(tx, tx.objectStore('word_meta').getAll()); },
+    async putMeta(m) { if (!db) throw new Error('DB not initialized'); const tx = db.transaction('word_meta', 'readwrite'); return promTx(tx, tx.objectStore('word_meta').put(m)); },
+    async deleteMeta(stem) { if (!db) throw new Error('DB not initialized'); const tx = db.transaction('word_meta', 'readwrite'); return promTx(tx, tx.objectStore('word_meta').delete(stem)); },
+    async getAllLogs() { if (!db) throw new Error('DB not initialized'); const tx = db.transaction('training_log', 'readonly'); return promTx(tx, tx.objectStore('training_log').getAll()); },
+    async getSnapshot() {
+      if (!db) throw new Error('DB not initialized');
+      const tx = db.transaction(['notes', 'word_evidence', 'word_meta', 'training_log'], 'readonly');
+      return readSnapshot(tx);
+    },
+    async addLog(entry) { if (!db) throw new Error('DB not initialized'); const tx = db.transaction('training_log', 'readwrite'); return promTx(tx, tx.objectStore('training_log').add(entry)); },
+    async clearLogs() { if (!db) throw new Error('DB not initialized'); const tx = db.transaction('training_log', 'readwrite'); return promTx(tx, tx.objectStore('training_log').clear()); },
+    async clearAll() {
+      if (!db) throw new Error('DB not initialized');
+      const tx = db.transaction(['notes', 'word_evidence', 'word_meta', 'training_log'], 'readwrite');
+      tx.objectStore('notes').clear();
+      tx.objectStore('word_evidence').clear();
+      tx.objectStore('word_meta').clear();
+      tx.objectStore('training_log').clear();
+      return promTx(tx, tx.objectStore('notes').count());
+    },
+    async mergeAll(plan) {
+      if (!db) throw new Error('DB not initialized');
+      const tx = db.transaction(['notes', 'word_evidence', 'word_meta', 'training_log'], 'readwrite');
+      const countReq = applyMergePlan(tx, plan);
+      return promTx(tx, countReq);
+    }
+  };
+})();
+
+// ── Аудит действий и ошибок ────────────────────────────────────────────────
+function auditStorage() {
+  try { return typeof localStorage !== 'undefined' ? localStorage : null; } catch (e) { return null; }
+}
+
+const Audit = (() => {
+  const storage = auditStorage();
+  const meta = {
+    sessionId: createSessionId(),
+    deviceId: getOrCreateDeviceId(storage),
+    appVersion: APP_VERSION
+  };
+  const fallback = createFallbackQueue(storage, DEFAULT_FALLBACK_KEY, 200);
+  let pushWarned = false;
+
+  // Постановка в fallback с учётом результата push (R-7): сбой виден в консоли
+  // ровно один раз, потери считает сама очередь (fallback.lost()).
+  function queueEvent(ev) {
+    const ok = fallback.push(ev);
+    if (!ok && !pushWarned) {
+      pushWarned = true;
+      console.warn('[audit] fallback push failed');
+    }
+    return ok;
+  }
+
+  function userAgent() {
+    try { return navigator.userAgent || ''; } catch (e) { return ''; }
+  }
+
+  function platform() {
+    try {
+      if (navigator.userAgentData && navigator.userAgentData.platform) return navigator.userAgentData.platform;
+      return navigator.platform || '';
+    } catch (e) { return ''; }
+  }
+
+  function event(payload) {
+    return makeEvent(payload, meta);
+  }
+
+  // Не блокирует UI: при сбое БД событие уходит в fallback-очередь.
+  function log(payload) {
+    let ev;
+    try { ev = event(payload); } catch (e) { console.error('[audit] event build failed:', e); return null; }
+    // До инициализации БД это не ошибка: копим в fallback и запишем на APP_START.
+    if (!DB.isReady()) {
+      queueEvent(ev);
+      return ev;
+    }
+    try {
+      const res = DB.addLog(ev);
+      if (res && typeof res.catch === 'function') {
+        res.catch(err => {
+          queueEvent(ev);
+          console.error('[audit] DB addLog failed:', err);
+        });
+      }
+    } catch (err) {
+      queueEvent(ev);
+      console.error('[audit] DB addLog threw:', err);
+    }
+    return ev;
+  }
+
+  function error(context, err, details) {
+    try {
+      return log(errorEvent(context, err, { ...meta, details }));
+    } catch (e) {
+      console.error('[audit] error() failed:', e);
+      return null;
+    }
+  }
+
+  // Перенос накопленной очереди в БД (APP_START).
+  // Сначала addLog, удаление — только после успеха; сбойные возвращаются в очередь.
+  async function flush() {
+    const res = await flushAuditQueue(fallback, ev => DB.addLog(ev));
+    if (res.lastError) console.error('[audit] flush failed:', res.lastError);
+    return res.written;
+  }
+
+  async function buildExport() {
+    let logs;
+    try {
+      logs = await readAuditLogs(() => DB.getAllLogs());
+    } catch (err) {
+      // Сбой чтения не маскируем пустым списком (R-1): наружу — ошибка.
+      console.error('[audit] buildExport DB:', err);
+      throw err;
+    }
+    // Pending из fallback подмешиваются с дедупликацией по eventId (R-11).
+    const pendingEvents = fallback.snapshot();
+    return buildAuditExport(logs, {
+      ...meta,
+      userAgent: userAgent(),
+      platform: platform(),
+      pendingEvents,
+      pending: pendingEvents.length,
+      lost: fallback.lost()
+    });
+  }
+
+  async function copy() {
+    const data = await buildExport();
+    return JSON.stringify(data, null, 2);
+  }
+
+  return { meta, event, log, error, flush, buildExport, copy };
+})();
+
+const WordLearningService = {
+  async onCorrection(text, fromBranch, toBranch, now, originalSeedConf) {
+    if (originalSeedConf >= TUNING.HIGH_CONFIDENCE_GUARD) return;
+    const stems = Tokenizer.stems(text);
+    if (stems.length === 0) return;
+    for (const stem of stems) {
+      const all = await DB.getAllEvidence();
+      const existing = all.find(e => e.stem === stem && e.branch === toBranch);
+      const updated = existing
+        ? { ...existing, evidence: existing.evidence + 1, distinctNotes: existing.distinctNotes + 1, lastSeenAt: now }
+        : { stem, branch: toBranch, evidence: 1, distinctNotes: 1, lastSeenAt: now };
+      await DB.putEvidence(updated);
+      await this.recomputeMeta(stem);
+    }
+  },
+  async recomputeMeta(stem) {
+    const all = await DB.getAllEvidence();
+    const rows = all.filter(e => e.stem === stem && e.evidence > 0);
+    if (rows.length === 0) return;
+    const total = rows.reduce((s, r) => s + r.evidence, 0);
+    const best = rows.reduce((a, b) => a.evidence > b.evidence ? a : b);
+    const ratio = best.evidence / total;
+    const existing = (await DB.getAllMeta()).find(m => m.stem === stem) || {};
+    const state = (best.evidence >= TUNING.CONFIRMED_MIN_EVIDENCE && best.distinctNotes >= TUNING.CONFIRMED_MIN_DISTINCT_NOTES && ratio >= TUNING.CONFIRMED_MIN_RATIO)
+      ? 'CONFIRMED'
+      : (best.distinctNotes >= TUNING.PROVISIONAL_MIN_DISTINCT_NOTES ? 'PROVISIONAL' : 'CANDIDATE');
+    await DB.putMeta({ stem, state, distinctNotes: best.distinctNotes, userCurated: existing.userCurated || false });
+  },
+  async effectiveBranch(stem) {
+    const allMeta = await DB.getAllMeta();
+    const meta = allMeta.find(m => m.stem === stem);
+    if (!meta || meta.state === 'CANDIDATE') return null;
+    const allEv = await DB.getAllEvidence();
+    const rows = allEv.filter(e => e.stem === stem && e.evidence > 0);
+    if (rows.length === 0) return null;
+    const best = rows.reduce((a, b) => a.evidence > b.evidence ? a : b);
+    const total = rows.reduce((s, r) => s + r.evidence, 0);
+    const ratio = best.evidence / total;
+    if (ratio < TUNING.CONFLICT_RATIO_THRESHOLD) return null;
+    const conf = meta.state === 'CONFIRMED' ? Math.max(ratio, TUNING.LEARNED_CONFIRMED_CONFIDENCE) : Math.max(ratio, TUNING.LEARNED_MIN_CONFIDENCE);
+    return { branch: best.branch, confidence: conf };
+  }
+};
+
+async function classify(text, ctx) {
+  const seedResult = SeedsClassifier.classify(text);
+  if (seedResult && seedResult.confidence >= TUNING.SEED_HIGH_CONFIDENCE) return { ...seedResult, source: 'SEED' };
+  const stems = Tokenizer.stems(text);
+  if (stems.length === 0) return { branch: '', source: 'NONE', confidence: 0, matched: '' };
+  const learnedHits = [];
+  for (const stem of stems) {
+    try {
+      const r = await WordLearningService.effectiveBranch(stem);
+      if (r) learnedHits.push({ stem, branch: r.branch, confidence: r.confidence });
+    } catch (e) { console.error('effectiveBranch error:', e); Audit.error('note', e, { action: 'effectiveBranch', stem }); }
+  }
+  const confirmed = learnedHits.filter(h => h.confidence >= TUNING.LEARNED_CONFIRMED_CONFIDENCE).sort((a,b) => b.confidence - a.confidence)[0];
+  if (confirmed) return { branch: confirmed.branch, source: 'LEARNED_CONFIRMED', confidence: confirmed.confidence, matched: confirmed.stem };
+  if (seedResult) return { ...seedResult, source: 'SEED' };
+  const provisional = learnedHits.filter(h => h.confidence >= TUNING.LEARNED_MIN_CONFIDENCE).sort((a,b) => b.confidence - a.confidence)[0];
+  if (provisional) return { branch: provisional.branch, source: 'LEARNED_PROVISIONAL', confidence: provisional.confidence, matched: provisional.stem };
+  if (ctx.bootMs < TUNING.MIN_BOOT_MS_FOR_FALLBACK) return { branch: '', source: 'NONE', confidence: 0, matched: '' };
+  const h = ctx.hour, weekend = ctx.isWeekend;
+  let fb = null;
+  if (!weekend && h >= 9 && h <= 17) fb = { branch: 'rabota', confidence: 0.35 };
+  else if (!weekend && h >= 18 && h <= 22) fb = { branch: 'byt', confidence: 0.30 };
+  else if (weekend) fb = { branch: 'byt', confidence: 0.25 };
+  if (fb) return { branch: fb.branch, source: 'TIME_FALLBACK', confidence: fb.confidence, matched: '' };
+  return { branch: '', source: 'NONE', confidence: 0, matched: '' };
+}
+
+const Corrections = (() => {
+  const chains = new Map();
+  const timers = new Map();
+  return {
+    correct(note, newBranch, now = Date.now(), originalSeedConf = 0) {
+      if (timers.has(note.id)) clearTimeout(timers.get(note.id));
+      let chain = chains.get(note.id);
+      if (!chain) {
+        chains.set(note.id, { originalBranch: note.branch, noteText: note.text, lastBranch: newBranch, lastTs: now, originalSeedConf });
+      } else {
+        if (newBranch === chain.originalBranch) { chains.delete(note.id); timers.delete(note.id); updatePendingUI(); return; }
+        chain.lastBranch = newBranch; chain.lastTs = now;
+      }
+      updatePendingUI();
+      timers.set(note.id, setTimeout(async () => {
+        const c = chains.get(note.id);
+        if (c && c.lastBranch !== c.originalBranch) {
+          try {
+            await WordLearningService.onCorrection(c.noteText, c.originalBranch, c.lastBranch, Date.now(), c.originalSeedConf);
+            Audit.log({ ts: Date.now(), type: 'CORRECT', source: 'ui', result: 'ok', noteId: note.id, from: c.originalBranch, to: c.lastBranch });
+            Audit.log({ ts: Date.now(), type: 'BRANCH_CHANGE', source: 'ui', result: 'ok', noteId: note.id, from: c.originalBranch, to: c.lastBranch });
+            const notes = await DB.getAllNotes();
+            const n = notes.find(x => x.id === note.id);
+            if (n) {
+              n.branch = c.lastBranch;
+              n.branchSource = 'USER_CORRECTED';
+              n.correctionCount = (n.correctionCount || 0) + 1;
+              await DB.putNote(n);
+              await loadNotes(); // ИСПРАВЛЕНО: обновляем state.notes
+              await render();
+              toast(`ветка → ${BRANCHES[c.lastBranch]?.name || 'пусто'}`);
+            }
+          } catch (e) { console.error('correction commit error:', e); Audit.error('db', e, { action: 'correctionCommit', noteId: note.id }); }
+        }
+        chains.delete(note.id);
+        timers.delete(note.id);
+        updatePendingUI();
+      }, TUNING.CORRECTION_DEBOUNCE_MS));
+    },
+    pendingCount() { return chains.size; }
+  };
+})();
+
+function updatePendingUI() {
+  const el = document.getElementById('corrPending');
+  const n = Corrections.pendingCount();
+  if (n > 0) {
+    el.textContent = `коррекция: ${n} · ${Math.ceil(TUNING.CORRECTION_DEBOUNCE_MS/1000)}с`;
+    el.classList.add('show');
+  } else {
+    el.classList.remove('show');
+  }
+}
+
+function collectContext() {
+  const now = Date.now();
+  const d = new Date(now);
+  const dow = d.getDay();
+  return {
+    ts: now, hour: d.getHours(), dayOfWeek: dow,
+    isWeekend: dow === 0 || dow === 6,
+    bootMs: performance.now(),
+    isOnline: navigator.onLine
+  };
+}
+
+const state = { notes: [], diagMode: false, pendingDelete: null, girlTimer: null, diagTapCount: 0, lastAdd: null, adding: false };
+
+function liveSheet() { return filterLiveSheet(state.notes, Date.now()); }
+
+function generateId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
+
+async function addNote(text) {
+  const trimmed = text.trim();
+  if (!trimmed || state.adding) return;
+  const now = Date.now();
+  if (isDuplicateAdd(state.lastAdd, trimmed, now, TUNING.DUPLICATE_ADD_WINDOW_MS)) return;
+  state.adding = true;
+  try {
+    const ctx = collectContext();
+    const due = DueParser.parse(trimmed, now);
+    const cls = await classify(trimmed, ctx);
+    const note = {
+      id: generateId(),
+      text: trimmed, createdAt: now, completedAt: null, reopenedAt: null,
+      dueAt: due ? due.dueAt : null,
+      dueSource: due ? due.source : 'NONE',
+      dueConfidence: due ? due.confidence : 0,
+      branch: cls.branch, branchSource: cls.source, branchConfidence: cls.confidence,
+      matchedToken: cls.matched, correctionCount: 0,
+      context: ctx, deletedAt: null, schemaVersion: 3
+    };
+    await DB.putNote(note);
+    Audit.log({ ts: now, type: 'CREATE', source: 'ui', result: 'ok', noteId: note.id, branch: cls.branch, text: truncateText(trimmed) });
+    state.lastAdd = { text: trimmed, ts: now };
+    await loadNotes();
+    await render();
+  } finally {
+    state.adding = false;
+  }
+}
+
+async function toggleNote(id) {
+  const n = state.notes.find(x => x.id === id);
+  if (!n) return;
+  const now = Date.now();
+  n.completedAt = n.completedAt === null ? now : null;
+  if (n.completedAt !== null) n.reopenedAt = null;
+  await DB.putNote(n);
+  Audit.log({ ts: now, type: n.completedAt !== null ? 'COMPLETE' : 'REOPEN', source: 'ui', result: 'ok', noteId: n.id });
+  await render();
+}
+
+async function deleteNote(id) {
+  const n = state.notes.find(x => x.id === id);
+  if (!n) return;
+  n.deletedAt = Date.now();
+  await DB.putNote(n);
+  Audit.log({ ts: n.deletedAt, type: 'DELETE', source: 'ui', result: 'ok', noteId: n.id });
+  await render();
+}
+
+async function restoreNote(id) {
+  const n = state.notes.find(x => x.id === id);
+  if (!n) return;
+  n.deletedAt = null;
+  await DB.putNote(n);
+  Audit.log({ ts: Date.now(), type: 'RESTORE', source: 'ui', result: 'ok', noteId: n.id });
+  await render();
+}
+
+async function undoDelete() {
+  if (!state.pendingDelete) return;
+  const id = state.pendingDelete;
+  const n = state.notes.find(x => x.id === id);
+  if (n) {
+    n.deletedAt = null;
+    await DB.putNote(n);
+    Audit.log({ ts: Date.now(), type: 'UNDO_DELETE', source: 'ui', result: 'ok', noteId: n.id });
+  }
+  hideGirl();
+  await render();
+}
+
+async function loadNotes() { state.notes = await DB.getAllNotes(); }
+
+function formatDue(dueAt) {
+  const now = new Date(); now.setHours(0,0,0,0);
+  const d = new Date(dueAt);
+  const dDay = new Date(d); dDay.setHours(0,0,0,0);
+  const dayDiff = Math.round((dDay - now) / 86400000);
+  const hh = d.getHours().toString().padStart(2,'0');
+  const mm = d.getMinutes().toString().padStart(2,'0');
+  const months = ['янв','фев','мар','апр','мая','июн','июл','авг','сен','окт','ноя','дек'];
+  let dayLabel;
+  if (dayDiff === 0) dayLabel = 'сегодня';
+  else if (dayDiff === 1) dayLabel = 'завтра';
+  else if (dayDiff === 2) dayLabel = 'послезавтра';
+  else if (dayDiff === -1) dayLabel = 'вчера';
+  else dayLabel = `${d.getDate()} ${months[d.getMonth()]}`;
+  const timeLabel = `${hh}:${mm}`;
+  if (timeLabel === '23:59') return dayLabel;
+  return `${dayLabel} ${timeLabel}`;
+}
+
+function formatTimeAgo(ts) {
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'только что';
+  if (mins < 60) return `${mins} мин назад`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} ч назад`;
+  const days = Math.floor(hours / 24);
+  return `${days} дн назад`;
+}
+
+function formatTimeUntil(ts) {
+  const diff = ts - Date.now();
+  if (diff < 0) return 'просрочено';
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `через ${mins} мин`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `через ${hours} ч`;
+  const days = Math.floor(hours / 24);
+  return `через ${days} дн`;
+}
+
+function formatDate(ts) {
+  const d = new Date(ts);
+  const days = ['воскресенье','понедельник','вторник','среда','четверг','пятница','суббота'];
+  const months = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+  return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]}`;
+}
+
+function branchStyle(branch) {
+  const b = BRANCHES[branch] || { color: 'var(--branch-none)', form: 'solid' };
+  const c = b.color;
+  if (b.form === 'solid') return `background: ${c}`;
+  if (b.form === 'dashed') return `background: repeating-linear-gradient(to bottom, ${c} 0 4px, transparent 4px 8px)`;
+  if (b.form === 'dotted') return `background: radial-gradient(circle, ${c} 1.5px, transparent 1.5px) 0 0 / 4px 4px`;
+  if (b.form === 'wavy') return `background: repeating-linear-gradient(45deg, ${c}, ${c} 2px, transparent 2px, transparent 6px)`;
+  if (b.form === 'double') return `background: linear-gradient(to right, ${c} 30%, transparent 30%, transparent 70%, ${c} 70%)`;
+  return `background: ${c}`;
+}
+
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function render() {
+  document.getElementById('dateTitle').textContent = 'Сегодня';
+  document.getElementById('dateSub').textContent = formatDate(Date.now());
+  const list = document.getElementById('list');
+  const sheet = liveSheet();
+  const now = Date.now();
+  if (sheet.length === 0) {
+    list.innerHTML = `<div class="empty"><div class="greeting">Жду задачи.</div>Лист открыт, места много.</div>`;
+    return;
+  }
+  const open = sheet.filter(n => n.completedAt === null);
+  const closed = sheet.filter(n => n.completedAt !== null);
+  open.sort((a,b) => {
+    const sa = DueStateCalculator.sortKey(DueStateCalculator.of(a, now));
+    const sb = DueStateCalculator.sortKey(DueStateCalculator.of(b, now));
+    if (sa !== sb) return sa - sb;
+    if (a.dueAt && b.dueAt) return a.dueAt - b.dueAt;
+    if (a.dueAt) return -1;
+    if (b.dueAt) return 1;
+    return b.createdAt - a.createdAt;
+  });
+  closed.sort((a,b) => b.completedAt - a.completedAt);
+  const overdue = open.filter(n => isOverdue(DueStateCalculator.of(n, now)));
+  const rest = open.filter(n => !isOverdue(DueStateCalculator.of(n, now)));
+  let html = '';
+  if (overdue.length > 0) {
+    html += `<div class="overdue-block" id="overdueBlock"><div class="overdue-head" id="overdueHead"><span>Просрочено · ${overdue.length}</span><span class="chev">›</span></div><div id="overdueBody"></div></div>`;
+  }
+  rest.forEach(n => html += renderNote(n, now));
+  if (closed.length > 0) {
+    html += `<div class="section-head">Сделано сегодня · ${closed.length}</div>`;
+    closed.forEach(n => html += renderNote(n, now));
+  }
+  const deleted = filterDeletedToday(state.notes, now);
+  if (deleted.length > 0) {
+    html += `<div class="section-head trash-head">Удалено сегодня · ${deleted.length}</div>`;
+    deleted.forEach(n => html += renderDeleted(n));
+  }
+  list.innerHTML = html;
+  list.querySelectorAll('[data-restore]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      restoreNote(btn.dataset.restore);
+    });
+  });
+  if (overdue.length > 0) {
+    const body = document.getElementById('overdueBody');
+    const block = document.getElementById('overdueBlock');
+    const head = document.getElementById('overdueHead');
+    let expanded = false;
+    const renderBody = () => {
+      const show = expanded ? overdue : overdue.slice(0, 2);
+      body.innerHTML = show.map(n => `<div class="overdue-item" data-id="${escapeHtml(n.id)}"><span>· ${escapeHtml(n.text)}</span><span class="due-label">${n.dueAt ? formatDue(n.dueAt) : ''}</span></div>`).join('') + (!expanded && overdue.length > 2 ? `<div class="overdue-more" id="overdueMore">ещё ${overdue.length - 2}</div>` : '');
+      body.querySelectorAll('.overdue-item').forEach(el => el.addEventListener('click', () => toggleNote(el.dataset.id)));
+      const more = document.getElementById('overdueMore');
+      if (more) more.addEventListener('click', () => { expanded = true; renderBody(); });
+    };
+    renderBody();
+    head.addEventListener('click', () => { expanded = !expanded; block.classList.toggle('expanded', expanded); renderBody(); });
+  }
+  attachNoteHandlers();
+}
+
+function renderNote(n, now) {
+  const closed = n.completedAt !== null;
+  const dueState = DueStateCalculator.of(n, now);
+  const dueLabel = n.dueAt ? formatDue(n.dueAt) : null;
+  let dueHtml = '';
+  if (dueLabel && !closed) dueHtml = `<div class="note-due ${isOverdue(dueState) ? 'overdue' : ''}">до ${dueLabel}</div>`;
+  
+  // ИСПРАВЛЕНО: подпись срока жизни в диагностике
+  let lifetimeHtml = '';
+  if (state.diagMode) {
+    const age = formatTimeAgo(n.createdAt);
+    const until = n.dueAt ? formatTimeUntil(n.dueAt) : '';
+    lifetimeHtml = `<div class="note-lifetime">создано ${age}${until ? ` · срок ${until}` : ''}</div>`;
+  }
+  
+  const diagHtml = `<div class="note-diag"><span class="tag">branch: ${n.branch || '?'}</span><span class="tag">conf: ${(n.branchConfidence || 0).toFixed(2)}</span><span class="tag">src: ${n.branchSource || '?'}</span>${n.matchedToken ? `<span class="tag">tok: ${escapeHtml(n.matchedToken)}</span>` : ''}${n.correctionCount ? `<span class="tag">corr: ${n.correctionCount}</span>` : ''}<span class="tag">state: ${dueState}</span></div>${lifetimeHtml}`;
+  return `<div class="note ${closed?'closed':''}" data-id="${escapeHtml(n.id)}"><div class="swipe-bg">удалить</div><div class="note-branch" style="${branchStyle(n.branch)}"></div><div class="note-body"><div class="note-text">${escapeHtml(n.text)}</div>${dueHtml}${diagHtml}</div></div>`;
+}
+
+function renderDeleted(n) {
+  return `<div class="note deleted" data-deleted-id="${escapeHtml(n.id)}"><div class="note-branch" style="${branchStyle(n.branch)}"></div><div class="note-body"><div class="note-text">${escapeHtml(n.text)}</div><div class="note-trash-actions"><span class="note-trash-hint">в корзине до полуночи</span><button class="note-restore" data-restore="${escapeHtml(n.id)}">вернуть</button></div></div></div>`;
+}
+
+function attachNoteHandlers() {
+  document.querySelectorAll('.note:not(.deleted)').forEach(el => {
+    const id = el.dataset.id;
+    let startX = 0, startY = 0, currentX = 0;
+    let swiping = false, moved = false, tapStart = 0;
+    let longPressTimer = null, longPressed = false;
+    const clearLongPress = () => { if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; } };
+    el.addEventListener('touchstart', e => {
+      startX = e.touches[0].clientX; startY = e.touches[0].clientY;
+      const touchX = startX, touchY = startY;
+      currentX = 0; swiping = false; moved = false; tapStart = Date.now(); longPressed = false;
+      longPressTimer = setTimeout(() => { longPressed = true; openBranchMenu(id, touchX, touchY); }, TUNING.LONG_PRESS_MS);
+    }, { passive: true });
+    el.addEventListener('touchmove', e => {
+      const dx = e.touches[0].clientX - startX, dy = e.touches[0].clientY - startY;
+      if (Math.abs(dx) > 8 || Math.abs(dy) > 8) clearLongPress();
+      if (!swiping && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) { swiping = true; el.classList.add('swiping'); }
+      if (swiping && dx < 0) { currentX = Math.max(dx, -150); el.style.transform = `translateX(${currentX}px)`; moved = true; }
+    }, { passive: true });
+    el.addEventListener('touchend', () => {
+      clearLongPress(); el.classList.remove('swiping');
+      if (longPressed) { longPressed = false; return; }
+      if (swiping && currentX < -80) {
+        el.classList.add('deleting');
+        setTimeout(async () => { state.pendingDelete = id; showGirl(); await deleteNote(id); }, 250);
+      } else {
+        el.style.transform = '';
+        if (!moved && Date.now() - tapStart < 300) toggleNote(id);
+      }
+      swiping = false;
+    });
+    let mouseDown = false, mouseStartX = 0, mouseTimer = null;
+    el.addEventListener('mousedown', e => {
+      mouseDown = true; mouseStartX = e.clientX; tapStart = Date.now(); longPressed = false;
+      const mx = e.clientX, my = e.clientY;
+      mouseTimer = setTimeout(() => { longPressed = true; openBranchMenu(id, mx, my); }, TUNING.LONG_PRESS_MS);
+    });
+    el.addEventListener('mousemove', e => {
+      if (!mouseDown) return;
+      const dx = e.clientX - mouseStartX;
+      if (Math.abs(dx) > 8) { clearTimeout(mouseTimer); mouseTimer = null; }
+      if (dx < -10) { el.classList.add('swiping'); currentX = Math.max(dx, -150); el.style.transform = `translateX(${currentX}px)`; moved = true; }
+    });
+    el.addEventListener('mouseup', () => {
+      clearTimeout(mouseTimer); mouseDown = false; el.classList.remove('swiping');
+      if (longPressed) { longPressed = false; return; }
+      if (currentX < -80) {
+        el.classList.add('deleting');
+        setTimeout(async () => { state.pendingDelete = id; showGirl(); await deleteNote(id); }, 250);
+      } else {
+        el.style.transform = '';
+        if (!moved && Date.now() - tapStart < 300) toggleNote(id);
+      }
+      currentX = 0; moved = false;
+    });
+    el.addEventListener('mouseleave', () => {
+      clearTimeout(mouseTimer);
+      if (mouseDown) { mouseDown = false; el.style.transform = ''; el.classList.remove('swiping'); currentX = 0; }
+    });
+    el.addEventListener('contextmenu', e => { e.preventDefault(); openBranchMenu(id, e.clientX, e.clientY); });
+  });
+}
+
+function openBranchMenu(noteId, x, y) {
+  const note = state.notes.find(n => n.id === noteId);
+  if (!note) return;
+  Audit.log({ type: 'UI', source: 'ui', result: 'ok', noteId: note.id, details: { action: 'openBranchMenu' } });
+  const menu = document.getElementById('branchMenu');
+  const statuses = branchStatuses(state.notes, BRANCH_KEYS, Date.now())
+    .sort((a, b) => Number(a.sleeping) - Number(b.sleeping) || (b.lastUsedAt || 0) - (a.lastUsedAt || 0));
+  menu.innerHTML = `<div class="branch-menu-item edit" data-action="edit"><span class="branch-menu-swatch" style="background: var(--muted); display:flex; align-items:center; justify-content:center; font-size:10px; color: var(--bg)">✎</span><span>Изменить текст</span></div>`
+    + statuses.map(({ key: k, sleeping }) => {
+    const isCurrent = note.branch === k;
+    const tail = isCurrent
+      ? '<span style="margin-left:auto">✓</span>'
+      : (sleeping ? '<span class="branch-sleep">спит</span>' : '');
+    return `<div class="branch-menu-item ${isCurrent?'current':''} ${sleeping?'sleeping':''}" data-branch="${k}"><div class="branch-menu-swatch" style="${branchStyle(k)}"></div><span>${BRANCHES[k].name}</span>${tail}</div>`;
+  }).join('') + `<div class="branch-menu-item clear" data-branch="">× Убрать ветку</div>`;
+  menu.classList.add('visible');
+  const vw = window.innerWidth, vh = window.innerHeight;
+  menu.style.left = Math.min(x, vw - 220) + 'px';
+  menu.style.top = Math.min(y + 10, vh - 300) + 'px';
+  menu.querySelectorAll('.branch-menu-item').forEach(item => {
+    item.onclick = (e) => {
+      e.stopPropagation();
+      if (item.dataset.action === 'edit') {
+        menu.classList.remove('visible');
+        startEdit(note.id);
+        return;
+      }
+      const br = item.dataset.branch;
+      const originalSeedConf = (br === '') ? 0 : (note.branchConfidence >= TUNING.SEED_HIGH_CONFIDENCE && note.branchSource === 'SEED' ? note.branchConfidence : 0);
+      Corrections.correct(note, br, Date.now(), originalSeedConf);
+      menu.classList.remove('visible');
+    };
+  });
+}
+
+function startEdit(id) {
+  const note = state.notes.find(n => n.id === id);
+  if (!note) return;
+  const el = document.querySelector(`.note[data-id="${CSS.escape(id)}"] .note-text`);
+  if (!el) return;
+  Audit.log({ type: 'UI', source: 'ui', result: 'ok', noteId: note.id, details: { action: 'startEdit' } });
+  if (!el) return;
+  const ta = document.createElement('textarea');
+  ta.className = 'note-edit';
+  ta.value = note.text;
+  ta.rows = 1;
+  el.replaceWith(ta);
+  const autosize = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
+  autosize();
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+  ta.addEventListener('input', autosize);
+  ['mousedown', 'mouseup', 'click', 'touchstart', 'touchend', 'contextmenu'].forEach(evt =>
+    ta.addEventListener(evt, e => e.stopPropagation())
+  );
+  let done = false;
+  const finish = async (save) => {
+    if (done) return;
+    done = true;
+    if (save) {
+      const updated = applyTextEdit(note, ta.value, Date.now());
+      if (updated) {
+        await DB.putNote(updated);
+        Audit.log({ ts: Date.now(), type: 'EDIT', source: 'ui', result: 'ok', noteId: note.id, text: truncateText(updated.text) });
+        await loadNotes();
+        toast('текст изменён');
+      }
+    }
+    await render();
+  };
+  ta.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  });
+  ta.addEventListener('blur', () => finish(true));
+}
+
+document.addEventListener('click', e => {
+  const menu = document.getElementById('branchMenu');
+  if (menu.classList.contains('visible') && !menu.contains(e.target)) menu.classList.remove('visible');
+});
+
+const PHRASES = ['Оно сейчас пропадёт…', 'Точно? Ещё три секунды…', 'Уйдёт. Уверен?', 'Подожди, можно вернуть…', 'Уносу? Ну ладно…'];
+function showGirl() {
+  const girl = document.getElementById('girl');
+  document.getElementById('girlPhrase').textContent = PHRASES[Math.floor(Math.random() * PHRASES.length)];
+  girl.classList.add('visible');
+  const bar = document.getElementById('girlBar');
+  bar.style.transition = 'none'; bar.style.width = '100%';
+  requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.transition = 'width 3.5s linear'; bar.style.width = '0%'; }));
+  clearTimeout(state.girlTimer);
+  state.girlTimer = setTimeout(hideGirl, 3700);
+}
+function hideGirl() {
+  document.getElementById('girl').classList.remove('visible');
+  state.pendingDelete = null;
+  clearTimeout(state.girlTimer);
+}
+
+let inputDebounce = null;
+const draft = document.getElementById('draft');
+const hint = document.getElementById('inputHint');
+draft.addEventListener('input', () => {
+  draft.style.height = 'auto';
+  draft.style.height = draft.scrollHeight + 'px';
+  clearTimeout(inputDebounce);
+  const text = draft.value.trim();
+  if (!text) { hint.innerHTML = ''; return; }
+  inputDebounce = setTimeout(async () => {
+    try {
+      const due = DueParser.parse(text);
+      const cls = await classify(text, collectContext());
+      let chips = [];
+      if (due) chips.push(`<span class="hint-chip due">срок: ${formatDue(due.dueAt)}</span>`);
+      if (cls.branch) chips.push(`<span class="hint-chip">ветка: ${BRANCHES[cls.branch]?.name || cls.branch} · ${Math.round(cls.confidence*100)}%</span>`);
+      chips.push(`<span class="hint-chip">src: ${cls.source}</span>`);
+      hint.innerHTML = chips.join('');
+    } catch (e) { console.error('input hint error:', e); Audit.error('note', e, { action: 'inputHint' }); }
+  }, 200);
+});
+draft.addEventListener('keydown', async e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    const text = draft.value.trim();
+    if (text) {
+      try {
+        await addNote(text);
+        draft.value = '';
+        draft.style.height = 'auto';
+        hint.innerHTML = '';
+      } catch (err) { console.error('addNote error:', err); Audit.error('note', err, { action: 'addNote' }); toast('Ошибка: ' + err.message); }
+    }
+  }
+});
+
+document.getElementById('settingsBtn').addEventListener('click', () => {
+  state.diagTapCount++;
+  if (state.diagTapCount >= TUNING.DIAGNOSTIC_TAPS_REQUIRED) {
+    state.diagMode = !state.diagMode;
+    document.body.classList.toggle('diag-on', state.diagMode);
+    state.diagTapCount = 0;
+    toast(`Диагностика ${state.diagMode ? 'включена' : 'выключена'}`);
+    document.getElementById('footer').textContent = `Живой блокнот · alpha v0.3 · диагностика: ${state.diagMode ? 'вкл' : 'выкл'}`;
+    render();
+  } else {
+    document.getElementById('footer').textContent = `Живой блокнот · alpha v0.3 · ${state.diagTapCount}/${TUNING.DIAGNOSTIC_TAPS_REQUIRED} тапов`;
+  }
+});
+
+document.getElementById('girlUndo').addEventListener('click', undoDelete);
+document.getElementById('girl').addEventListener('click', e => { if (e.target.id !== 'girlUndo') undoDelete(); });
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+const Monitor = (() => {
+  let currentTab = 'overview';
+  let logFilter = 'ALL';
+  let logSearch = '';
+
+  function open() {
+    document.getElementById('monitorBackdrop').classList.add('visible');
+    currentTab = 'overview';
+    updateTabs();
+    renderTab();
+    Audit.log({ type: 'UI', source: 'ui', result: 'ok', details: { action: 'monitorOpen' } });
+  }
+
+  function close() {
+    document.getElementById('monitorBackdrop').classList.remove('visible');
+  }
+
+  function updateTabs() {
+    document.querySelectorAll('.monitor-tab').forEach(t => {
+      t.classList.toggle('active', t.dataset.tab === currentTab);
+    });
+  }
+
+  function setTab(tab) {
+    currentTab = tab;
+    updateTabs();
+    renderTab();
+    Audit.log({ type: 'UI', source: 'ui', result: 'ok', details: { action: 'monitorTab', tab } });
+  }
+
+  async function renderTab() {
+    const body = document.getElementById('monitorBody');
+    const footer = document.getElementById('monitorFooter');
+    body.innerHTML = '<div class="mon-empty">Загрузка...</div>';
+    footer.innerHTML = '';
+
+    try {
+      if (currentTab === 'overview') await renderOverview(body, footer);
+      else if (currentTab === 'notes') await renderNotes(body, footer);
+      else if (currentTab === 'learning') await renderLearning(body, footer);
+      else if (currentTab === 'logs') await renderLogs(body, footer);
+    } catch (e) {
+      console.error('Monitor render error:', e);
+      Audit.error('render', e, { action: 'monitorRenderTab', tab: currentTab });
+      body.innerHTML = `<div class="mon-empty" style="color:var(--overdue)">Ошибка: ${escapeHtml(e.message)}</div>`;
+    }
+  }
+
+  async function renderOverview(body, footer) {
+    const notes = await DB.getAllNotes();
+    const evidence = await DB.getAllEvidence();
+    const meta = await DB.getAllMeta();
+    const logs = await DB.getAllLogs();
+    const now = Date.now();
+    const active = notes.filter(n => !n.deletedAt);
+    const open = active.filter(n => n.completedAt === null);
+    const closed = active.filter(n => n.completedAt !== null);
+    const overdue = open.filter(n => isOverdue(DueStateCalculator.of(n, now)));
+    const dueToday = open.filter(n => n.dueAt && DueStateCalculator.of(n, now) === DueState.DUE_TODAY);
+
+    const byBranch = {};
+    for (const n of open) {
+      const b = n.branch || 'none';
+      byBranch[b] = (byBranch[b] || 0) + 1;
+    }
+
+    body.innerHTML = `
+      <div class="mon-stat-grid">
+        <div class="mon-stat"><div class="mon-stat-v">${active.length}</div><div class="mon-stat-l">всего</div></div>
+        <div class="mon-stat"><div class="mon-stat-v">${open.length}</div><div class="mon-stat-l">открыто</div></div>
+        <div class="mon-stat"><div class="mon-stat-v">${closed.length}</div><div class="mon-stat-l">сегодня</div></div>
+        <div class="mon-stat"><div class="mon-stat-v" style="color:var(--overdue)">${overdue.length}</div><div class="mon-stat-l">просрочено</div></div>
+        <div class="mon-stat"><div class="mon-stat-v" style="color:var(--due)">${dueToday.length}</div><div class="mon-stat-l">сегодня срок</div></div>
+        <div class="mon-stat"><div class="mon-stat-v">${logs.length}</div><div class="mon-stat-l">логов</div></div>
+      </div>
+      <div class="mon-section-title">Ветки (открытые задачи)</div>
+      ${BRANCH_KEYS.map(k => {
+        const count = byBranch[k] || 0;
+        const b = BRANCHES[k];
+        return `<div class="mon-item" style="border-left-color:${b.color}">
+          <span class="k">${b.name}:</span> <span class="v">${count}</span>
+        </div>`;
+      }).join('')}
+      ${(byBranch[''] || 0) > 0 ? `<div class="mon-item" style="border-left-color:var(--branch-none)"><span class="k">без ветки:</span> <span class="v">${byBranch['']}</span></div>` : ''}
+      <div class="mon-section-title">Обучение</div>
+      <div class="mon-item">
+        <span class="k">Слов в словаре:</span> <span class="v">${meta.length}</span><br>
+        <span class="k">CONFIRMED:</span> <span class="v">${meta.filter(m => m.state === 'CONFIRMED').length}</span> · 
+        <span class="k">PROVISIONAL:</span> <span class="v">${meta.filter(m => m.state === 'PROVISIONAL').length}</span> · 
+        <span class="k">CANDIDATE:</span> <span class="v">${meta.filter(m => m.state === 'CANDIDATE').length}</span><br>
+        <span class="k">Evidence записей:</span> <span class="v">${evidence.length}</span>
+      </div>
+      <div class="mon-section-title">Система</div>
+      <div class="mon-item">
+        <span class="k">Версия:</span> <span class="v">alpha v0.3</span><br>
+        <span class="k">БД:</span> <span class="v">${DB.isReady() ? '✓ IndexedDB' : '✗ не инициализирована'}</span><br>
+        <span class="k">Диагностика:</span> <span class="v">${state.diagMode ? 'вкл' : 'выкл'}</span><br>
+        <span class="k">Время:</span> <span class="v">${new Date().toLocaleString('ru-RU')}</span><br>
+        <span class="k">Uptime:</span> <span class="v">${Math.floor(performance.now()/1000)}с</span>
+      </div>
+    `;
+    footer.innerHTML = `
+      <button class="monitor-btn primary" id="monExportAll">⬇ Экспорт всего</button>
+      <button class="monitor-btn" id="monImportAll">⬆ Импорт</button>
+      <button class="monitor-btn danger" id="monReset">🔄 Сброс</button>
+      <button class="monitor-btn" id="monRefresh">🔄 Обновить</button>
+    `;
+    document.getElementById('monExportAll').onclick = () => exportAll();
+    document.getElementById('monImportAll').onclick = () => importAll();
+    document.getElementById('monReset').onclick = () => resetToDefault();
+    document.getElementById('monRefresh').onclick = () => renderTab();
+  }
+
+  async function renderNotes(body, footer) {
+    const notes = await DB.getAllNotes();
+    const now = Date.now();
+    const active = notes.filter(n => !n.deletedAt).sort((a,b) => b.createdAt - a.createdAt);
+
+    body.innerHTML = `
+      <div class="mon-section-title">Все заметки (${active.length})</div>
+      ${active.length === 0 ? '<div class="mon-empty">Пусто</div>' : active.map(n => {
+        const state = DueStateCalculator.of(n, now);
+        const stateColor = isOverdue(state) ? 'var(--overdue)' : state === 'DUE_TODAY' ? 'var(--due)' : 'var(--muted)';
+        const b = BRANCHES[n.branch] || { name: '?', color: 'var(--branch-none)' };
+        return `<div class="mon-item" style="border-left-color:${b.color}">
+          <div style="margin-bottom:4px"><strong>${escapeHtml(n.text)}</strong></div>
+          <span class="k">id:</span> <span class="v">${escapeHtml(String(n.id).slice(0,8))}…</span> · 
+          <span class="k">ветка:</span> <span class="v">${b.name}</span> · 
+          <span class="k">src:</span> <span class="v">${n.branchSource || '?'}</span> · 
+          <span class="k">conf:</span> <span class="v">${(n.branchConfidence || 0).toFixed(2)}</span><br>
+          ${n.dueAt ? `<span class="k">срок:</span> <span class="v" style="color:${stateColor}">${formatDue(n.dueAt)} [${state}]</span> · ` : ''}
+          <span class="k">созд:</span> <span class="v">${new Date(n.createdAt).toLocaleString('ru-RU')}</span>
+          ${n.completedAt ? ` · <span class="v" style="color:#047857">✓ ${new Date(n.completedAt).toLocaleTimeString('ru-RU')}</span>` : ''}
+          ${n.correctionCount ? ` · <span class="k">corr:</span> <span class="v">${n.correctionCount}</span>` : ''}
+        </div>`;
+      }).join('')}
+    `;
+    footer.innerHTML = `
+      <button class="monitor-btn primary" id="monExportNotes">⬇ Экспорт заметок</button>
+      <button class="monitor-btn" id="monRefresh">🔄 Обновить</button>
+    `;
+    document.getElementById('monExportNotes').onclick = () => exportNotes();
+    document.getElementById('monRefresh').onclick = () => renderTab();
+  }
+
+  async function renderLearning(body, footer) {
+    const meta = await DB.getAllMeta();
+    const evidence = await DB.getAllEvidence();
+
+    const confirmed = meta.filter(m => m.state === 'CONFIRMED').sort((a,b) => b.distinctNotes - a.distinctNotes);
+    const provisional = meta.filter(m => m.state === 'PROVISIONAL').sort((a,b) => b.distinctNotes - a.distinctNotes);
+    const candidate = meta.filter(m => m.state === 'CANDIDATE').sort((a,b) => b.distinctNotes - a.distinctNotes);
+
+    const renderGroup = (title, items, tagClass) => {
+      if (items.length === 0) return '';
+      return `
+        <div class="mon-section-title">${title} (${items.length})</div>
+        ${items.map(m => {
+          const evForStem = evidence.filter(e => e.stem === m.stem);
+          const details = evForStem.map(e => `${e.branch}:${e.evidence}`).join(', ');
+          return `<div class="mon-item">
+            <span class="tag ${tagClass}">${m.state}</span>
+            <strong>${escapeHtml(m.stem)}</strong>
+            ${m.userCurated ? '<span class="tag" style="background:rgba(139,92,246,0.15);color:#6d28d9">user</span>' : ''}
+            <br>
+            <span class="k">заметок:</span> <span class="v">${m.distinctNotes}</span> · 
+            <span class="k">evidence:</span> <span class="v">{${details}}</span>
+          </div>`;
+        }).join('')}
+      `;
+    };
+
+    body.innerHTML = `
+      <div class="mon-stat-grid">
+        <div class="mon-stat"><div class="mon-stat-v">${meta.length}</div><div class="mon-stat-l">слов</div></div>
+        <div class="mon-stat"><div class="mon-stat-v">${evidence.length}</div><div class="mon-stat-l">evidence</div></div>
+        <div class="mon-stat"><div class="mon-stat-v">${confirmed.length}</div><div class="mon-stat-l">confirmed</div></div>
+      </div>
+      ${renderGroup('CONFIRMED', confirmed, 'confirmed')}
+      ${renderGroup('PROVISIONAL', provisional, 'provisional')}
+      ${renderGroup('CANDIDATE', candidate, 'candidate')}
+      ${meta.length === 0 ? '<div class="mon-empty">Словарь пуст. Слова появляются после коррекций веток (long-press → сменить ветку).</div>' : ''}
+    `;
+    footer.innerHTML = `
+      <button class="monitor-btn primary" id="monExportLearning">⬇ Экспорт обучения</button>
+      <button class="monitor-btn danger" id="monClearLearning">🗑 Очистить обучение</button>
+      <button class="monitor-btn" id="monRefresh">🔄 Обновить</button>
+    `;
+    document.getElementById('monExportLearning').onclick = () => exportLearning();
+    document.getElementById('monClearLearning').onclick = async () => {
+      if (!confirm('Удалить все данные обучения (evidence + meta)? Заметки останутся.')) return;
+      try {
+        for (const e of evidence) await DB.deleteEvidence([e.stem, e.branch]);
+        for (const m of meta) await DB.deleteMeta(m.stem);
+        toast('Обучение очищено');
+        renderTab();
+      } catch (err) { Audit.error('db', err, { action: 'clearLearning' }); toast('Ошибка: ' + err.message); }
+    };
+    document.getElementById('monRefresh').onclick = () => renderTab();
+  }
+
+  async function renderLogs(body, footer) {
+    const logs = await DB.getAllLogs();
+    const sorted = [...logs].sort((a,b) => b.ts - a.ts);
+
+    const types = ['ALL', 'CREATE', 'COMPLETE', 'REOPEN', 'CORRECT'];
+    let filtered = logFilter === 'ALL' ? sorted : sorted.filter(l => l.type === logFilter);
+    if (logSearch) {
+      const q = logSearch.toLowerCase();
+      filtered = filtered.filter(l => 
+        (l.text && l.text.toLowerCase().includes(q)) ||
+        (l.branch && l.branch.toLowerCase().includes(q)) ||
+        (l.from && l.from.toLowerCase().includes(q)) ||
+        (l.to && l.to.toLowerCase().includes(q)) ||
+        String(l.noteId).toLowerCase().includes(q)
+      );
+    }
+
+    body.innerHTML = `
+      <input type="text" class="mon-search" id="logSearch" placeholder="Поиск по тексту, ветке, id..." value="${escapeHtml(logSearch)}">
+      <div class="mon-filter">
+        ${types.map(t => `<button class="mon-filter-btn ${logFilter === t ? 'active' : ''}" data-type="${t}">${t}${t !== 'ALL' ? ` (${sorted.filter(l => l.type === t).length})` : ''}</button>`).join('')}
+      </div>
+      <div class="mon-section-title">События (${filtered.length}${filtered.length !== sorted.length ? ` из ${sorted.length}` : ''})</div>
+      ${filtered.length === 0 ? '<div class="mon-empty">Нет записей</div>' : filtered.slice(0, 200).map(l => {
+        const tagClass = l.type === 'CREATE' ? 'create' : l.type === 'COMPLETE' ? 'complete' : l.type === 'CORRECT' ? 'correct' : 'reopen';
+        const time = new Date(l.ts).toLocaleString('ru-RU');
+        let details = '';
+        if (l.type === 'CREATE') details = `<span class="k">текст:</span> <span class="v">${escapeHtml(l.text || '?')}</span> · <span class="k">ветка:</span> <span class="v">${l.branch || '?'}</span>`;
+        else if (l.type === 'CORRECT') details = `<span class="k">${l.from} → ${l.to}</span>`;
+        else details = `<span class="k">noteId:</span> <span class="v">${escapeHtml(String(l.noteId || '').slice(0,8))}</span>`;
+        return `<div class="mon-item">
+          <span class="tag ${tagClass}">${l.type}</span>
+          <span class="k">${time}</span><br>
+          ${details}
+        </div>`;
+      }).join('')}
+      ${filtered.length > 200 ? `<div class="mon-empty">Показаны первые 200 из ${filtered.length}</div>` : ''}
+    `;
+    footer.innerHTML = `
+      <button class="monitor-btn primary" id="monExportLogs">⬇ Экспорт логов</button>
+      <button class="monitor-btn primary" id="monDownloadAudit">⬇ Скачать аудит</button>
+      <button class="monitor-btn" id="monCopyAudit">📋 Копировать</button>
+      <button class="monitor-btn danger" id="monClearLogs">🗑 Очистить логи</button>
+      <button class="monitor-btn" id="monRefresh">🔄 Обновить</button>
+    `;
+
+    document.getElementById('logSearch').oninput = (e) => {
+      logSearch = e.target.value;
+      renderTab();
+    };
+    document.querySelectorAll('.mon-filter-btn').forEach(btn => {
+      btn.onclick = () => {
+        logFilter = btn.dataset.type;
+        renderTab();
+      };
+    });
+    document.getElementById('monExportLogs').onclick = () => exportLogs();
+    document.getElementById('monDownloadAudit').onclick = async () => {
+      try {
+        const data = await Audit.buildExport();
+        downloadJSON(data, 'livenotepad-audit');
+        Audit.log({
+          type: 'EXPORT_AUDIT', source: 'export', result: 'ok',
+          counts: data.counts,
+          details: { pending: data.pending, lost: data.lost }
+        });
+        toast(`Аудит: ${data.counts.events} событий${data.pending ? ` (+${data.pending} в очереди)` : ''}`);
+      } catch (e) {
+        Audit.error('export', e, { action: 'exportAudit' });
+        Audit.log({ type: 'EXPORT_AUDIT', source: 'export', result: 'error', details: { message: (e && (e.message || e.name)) || String(e) } });
+        toast('Ошибка выгрузки аудита');
+      }
+    };
+    document.getElementById('monCopyAudit').onclick = async () => {
+      let json = '';
+      try { json = await Audit.copy(); }
+      catch (e) {
+        Audit.error('export', e, { action: 'copyAudit' });
+        toast('Ошибка аудита');
+        return;
+      }
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        try {
+          await navigator.clipboard.writeText(json);
+          Audit.log({ type: 'EXPORT_AUDIT', source: 'export', result: 'ok', details: { method: 'clipboard' } });
+          toast('Аудит скопирован');
+          return;
+        } catch (e) {
+          console.error('[audit] clipboard failed:', e);
+          Audit.error('export', e, { action: 'copyAuditClipboard' });
+        }
+      }
+      if (typeof navigator.share === 'function') {
+        try {
+          await navigator.share({ title: 'Живой блокнот — аудит', text: json });
+          Audit.log({ type: 'EXPORT_AUDIT', source: 'export', result: 'ok', details: { method: 'share' } });
+          return;
+        } catch (e) {
+          console.error('[audit] share failed:', e);
+          Audit.error('export', e, { action: 'copyAuditShare' });
+        }
+      }
+      showAuditTextarea(json);
+      Audit.log({ type: 'EXPORT_AUDIT', source: 'export', result: 'ok', details: { method: 'textarea' } });
+    };
+    document.getElementById('monClearLogs').onclick = async () => {
+      if (!confirm('Удалить все логи? Это действие необратимо.')) return;
+      try {
+        await DB.clearLogs();
+        toast('Логи очищены');
+        renderTab();
+      } catch (err) { Audit.error('db', err, { action: 'clearLogs' }); toast('Ошибка: ' + err.message); }
+    };
+    document.getElementById('monRefresh').onclick = () => renderTab();
+  }
+
+  function downloadJSON(data, filename) {
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    a.href = url;
+    a.download = `${filename}-${stamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    // R-6: не отзываем URL синхронно — на мобильных (iOS Safari/Android WebView)
+    // это может отменить старт загрузки.
+    setTimeout(() => { try { URL.revokeObjectURL(url); } catch (e) { /* ignore */ } }, 1000);
+  }
+
+  // Fallback для Safari/телефона: показать JSON в textarea без тяжёлого CSS.
+  function showAuditTextarea(json) {
+    let wrap = document.getElementById('auditJsonBox');
+    if (!wrap) {
+      wrap = document.createElement('div');
+      wrap.id = 'auditJsonBox';
+      wrap.innerHTML = '<div class="mon-section-title">Аудит JSON — выделите и скопируйте</div><textarea class="audit-json" id="auditJsonText" readonly></textarea>';
+      const body = document.getElementById('monitorBody');
+      if (body) body.appendChild(wrap);
+    }
+    const ta = document.getElementById('auditJsonText');
+    if (ta) {
+      ta.value = json;
+      ta.focus();
+      try { ta.select(); } catch (e) { /* ignore */ }
+    }
+  }
+
+  async function exportAll() {
+    try {
+      const data = {
+        version: 'alpha-v0.3',
+        schemaVersion: 3,
+        exportedAt: new Date().toISOString(),
+        tuning: TUNING,
+        notes: await DB.getAllNotes(),
+        word_evidence: await DB.getAllEvidence(),
+        word_meta: await DB.getAllMeta(),
+        training_log: await DB.getAllLogs()
+      };
+      downloadJSON(data, 'livenotepad-full');
+      Audit.log({ type: 'EXPORT', source: 'export', result: 'ok', counts: { notes: data.notes.length, evidence: data.word_evidence.length, meta: data.word_meta.length, logs: data.training_log.length }, mode: 'all' });
+      toast('Полный экспорт сохранён');
+    } catch (e) { Audit.error('export', e, { action: 'exportAll' }); toast('Ошибка: ' + e.message); }
+  }
+
+  async function importAll() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const safeError = err => (err && (err.message || err.name)) || String(err);
+
+      let data;
+      try {
+        const text = await file.text();
+        data = JSON.parse(text);
+      } catch (err) {
+        Audit.error('import', err, { action: 'importParse' });
+        toast('Ошибка импорта: ' + safeError(err));
+        return;
+      }
+
+      const validation = validateImport(data);
+      if (validation.errors.length > 0) {
+        Audit.log({ type: 'IMPORT', source: 'ui', result: 'error', mode: 'merge', details: { message: validation.errors[0], errors: validation.errors.slice(0, 10) } });
+        toast('Импорт отклонён: ' + validation.errors[0]);
+        return;
+      }
+      if (validation.warnings.length > 0) {
+        if (!confirm('Предупреждения импорта:\n' + validation.warnings.join('\n') + '\n\nПродолжить?')) return;
+      }
+
+      const logImportError = err => {
+        Audit.error('import', err, { action: 'importMerge' });
+        Audit.log({
+          ts: Date.now(),
+          type: 'IMPORT',
+          mode: 'merge',
+          source: 'ui',
+          result: 'error',
+          details: { message: safeError(err) }
+        });
+      };
+
+      let plan;
+      try {
+        const snapshot = await DB.getSnapshot();
+        plan = planImport(
+          {
+            notes: snapshot.notes,
+            evidence: snapshot.evidence,
+            meta: snapshot.meta,
+            logs: snapshot.logs
+          },
+          {
+            notes: validation.sections.notes,
+            evidence: validation.sections.word_evidence,
+            meta: validation.sections.word_meta,
+            logs: validation.sections.training_log
+          }
+        );
+        const summary = `Слияние без удаления:\n`
+          + `заметки: +${plan.stats.notesAdded}, обновится ${plan.stats.notesUpdated}\n`
+          + `evidence: +${plan.stats.evidenceAdded}, обновится ${plan.stats.evidenceUpdated}\n`
+          + `meta пересчитано: ${plan.stats.metaRecomputed}\n`
+          + `логов: +${plan.stats.logsAdded}\n\nПродолжить?`;
+        if (!confirm(summary)) return;
+      } catch (err) {
+        toast('Ошибка импорта: ' + safeError(err));
+        logImportError(err);
+        return;
+      }
+
+      plan.logs.push(Audit.event({ ts: Date.now(), type: 'IMPORT', mode: 'merge', source: 'ui', result: 'ok', counts: plan.stats }));
+      try {
+        await DB.mergeAll(plan);
+      } catch (err) {
+        toast('Ошибка импорта: ' + safeError(err));
+        logImportError(err);
+        return;
+      }
+
+      try {
+        await loadNotes();
+        await render();
+        if (typeof renderTab === 'function') renderTab();
+      } catch (err) {
+        console.error('import post-processing error:', err);
+        Audit.error('render', err, { action: 'importPostRender' });
+        toast('Импорт применён, но экран не обновился');
+        return;
+      }
+      toast('Импорт завершён');
+    };
+    input.click();
+  }
+
+  async function resetToDefault() {
+    if (!confirm('Сбросить все данные к начальному состоянию? Все заметки, обучение и логи будут удалены.')) return;
+    try {
+      await DB.clearAll();
+      state.notes = [];
+      
+      // Загружаем seed-заметки
+      const seeds = ['позвонить маме до 20', 'купить молоко', 'дочитать отчёт завтра в 11', 'записаться к зубу в пятницу', 'подкачай шины'];
+      for (const text of seeds) {
+        try { await addNote(text); }
+        catch (e) { console.error('seed note error:', e); Audit.error('note', e, { action: 'resetSeed' }); }
+      }
+      
+      toast('Сброс выполнен');
+      renderTab();
+    } catch (err) {
+      Audit.error('db', err, { action: 'resetToDefault' });
+      toast('Ошибка сброса: ' + err.message);
+    }
+  }
+
+  async function exportNotes() {
+    try {
+      const notes = await DB.getAllNotes();
+      downloadJSON({ version: 'alpha-v0.3', schemaVersion: 3, exportedAt: new Date().toISOString(), count: notes.length, notes }, 'livenotepad-notes');
+      Audit.log({ type: 'EXPORT', source: 'export', result: 'ok', counts: { notes: notes.length }, mode: 'notes' });
+      toast(`Экспортировано ${notes.length} заметок`);
+    } catch (e) { Audit.error('export', e, { action: 'exportNotes' }); toast('Ошибка: ' + e.message); }
+  }
+
+  async function exportLearning() {
+    try {
+      const data = {
+        version: 'alpha-v0.3',
+        schemaVersion: 3,
+        exportedAt: new Date().toISOString(),
+        word_evidence: await DB.getAllEvidence(),
+        word_meta: await DB.getAllMeta()
+      };
+      downloadJSON(data, 'livenotepad-learning');
+      Audit.log({ type: 'EXPORT', source: 'export', result: 'ok', counts: { evidence: data.word_evidence.length, meta: data.word_meta.length }, mode: 'learning' });
+      toast('Обучение экспортировано');
+    } catch (e) { Audit.error('export', e, { action: 'exportLearning' }); toast('Ошибка: ' + e.message); }
+  }
+
+  async function exportLogs() {
+    try {
+      const logs = await DB.getAllLogs();
+      downloadJSON({ version: 'alpha-v0.3', schemaVersion: 3, exportedAt: new Date().toISOString(), count: logs.length, logs }, 'livenotepad-logs');
+      Audit.log({ type: 'EXPORT', source: 'export', result: 'ok', counts: { logs: logs.length }, mode: 'logs' });
+      toast(`Экспортировано ${logs.length} записей`);
+    } catch (e) { Audit.error('export', e, { action: 'exportLogs' }); toast('Ошибка: ' + e.message); }
+  }
+
+  return { open, close, setTab, renderTab };
+})();
+
+document.getElementById('monitorBtn').addEventListener('click', () => Monitor.open());
+document.getElementById('monitorClose').addEventListener('click', () => Monitor.close());
+document.getElementById('monitorBackdrop').addEventListener('click', (e) => {
+  if (e.target.id === 'monitorBackdrop') Monitor.close();
+});
+document.querySelectorAll('.monitor-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    Monitor.setTab(tab.dataset.tab);
+  });
+});
+
+// ── Смена дня: полночь и возврат в приложение ──────────────────────────────
+let lastDay = startOfDay(Date.now());
+let midnightTimer = null;
+
+async function onDayRollover(showToast = false) {
+  const today = startOfDay(Date.now());
+  if (today === lastDay) return false;
+  lastDay = today;
+  await render();
+  if (showToast) toast('Новый лист');
+  return true;
+}
+
+function scheduleMidnight() {
+  clearTimeout(midnightTimer);
+  const delay = Math.max(1000, nextMidnight(Date.now()) - Date.now());
+  midnightTimer = setTimeout(async () => {
+    try {
+      const rolled = await onDayRollover(true);
+      if (rolled) Audit.log({ type: 'MIDNIGHT', source: 'system', result: 'ok', details: { day: startOfDay(Date.now()) } });
+    }
+    catch (e) { console.error('midnight rollover:', e); Audit.error('render', e, { action: 'midnightRollover' }); }
+    finally { scheduleMidnight(); }
+  }, delay);
+}
+scheduleMidnight();
+
+const intervalId = setInterval(async () => {
+  try {
+    const rolled = await onDayRollover(false);
+    if (!rolled) await render();
+  } catch (e) { console.error('render tick:', e); Audit.error('render', e, { action: 'renderTick' }); }
+}, 60000);
+
+async function onResume() {
+  try {
+    await onDayRollover(false);
+    await render();
+    scheduleMidnight();
+  } catch (e) { console.error('resume:', e); Audit.error('window', e, { action: 'resume' }); }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    Audit.log({ type: 'APP_HIDDEN', source: 'system', result: 'ok' });
+  } else {
+    Audit.log({ type: 'APP_RESUME', source: 'system', result: 'ok', details: { via: 'visibilitychange' } });
+    onResume();
+  }
+});
+window.addEventListener('pageshow', e => {
+  Audit.log({ type: 'APP_RESUME', source: 'system', result: 'ok', details: { via: 'pageshow', persisted: !!(e && e.persisted) } });
+  if (e.persisted) onResume();
+});
+window.addEventListener('focus', onResume);
+
+// Глобальный перехват: runtime-ошибки и необработанные промисы.
+window.addEventListener('error', e => {
+  const err = e && (e.error || e.message);
+  Audit.error('window', err, { action: 'windowError', file: e && e.filename, line: e && e.lineno, column: e && e.colno });
+});
+window.addEventListener('unhandledrejection', e => {
+  Audit.error('promise', e && e.reason, { action: 'unhandledrejection' });
+});
+
+window.addEventListener('beforeunload', () => {
+  clearInterval(intervalId);
+  clearTimeout(midnightTimer);
+});
+
+(async () => {
+  try {
+    console.log('[INIT] Starting initialization...');
+    await DB.init();
+    console.log('[INIT] DB initialized');
+    await loadNotes();
+    console.log('[INIT] Notes loaded:', state.notes.length);
+    let startCounts = { notes: state.notes.length, evidence: 0, meta: 0, logs: 0 };
+    try {
+      const [evidence, meta, logs] = await Promise.all([DB.getAllEvidence(), DB.getAllMeta(), DB.getAllLogs()]);
+      startCounts = { notes: state.notes.length, evidence: evidence.length, meta: meta.length, logs: logs.length };
+    } catch (err) {
+      console.error('[INIT] counts error:', err);
+      Audit.error('db', err, { action: 'appStartCounts' });
+    }
+    Audit.log({
+      type: 'APP_START',
+      source: 'system',
+      result: 'ok',
+      details: {
+        counts: startCounts,
+        appVersion: APP_VERSION,
+        userAgent: navigator.userAgent,
+        platform: (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || ''
+      }
+    });
+    await Audit.flush();
+    await render();
+    console.log('[INIT] Render complete');
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      setTimeout(() => draft.focus(), 100);
+    }
+    if (state.notes.length === 0) {
+      console.log('[INIT] No notes found, adding seeds...');
+      const seeds = ['позвонить маме до 20', 'купить молоко', 'дочитать отчёт завтра в 11', 'записаться к зубу в пятницу', 'подкачай шины'];
+      for (const text of seeds) {
+        try { 
+          await addNote(text); 
+          console.log('[INIT] Seed added:', text);
+        }
+        catch (e) { 
+          console.error('[INIT] Seed note error:', text, e); 
+          Audit.error('note', e, { action: 'initSeed' });
+        }
+      }
+    }
+    console.log('[INIT] Initialization complete');
+  } catch (e) {
+    console.error('[INIT] Initialization error:', e);
+    Audit.error('db', e, { action: 'appInit' });
+    const list = document.getElementById('list');
+    if (list) {
+      list.innerHTML = `<div class="empty" style="color:var(--overdue)">
+        <div class="greeting">Ошибка инициализации</div>
+        ${escapeHtml(e.message)}<br><br>
+        <strong>Решение:</strong> откройте файл через локальный сервер:<br>
+        <code style="font-size:11px; background:rgba(0,0,0,0.05); padding:4px 8px; border-radius:4px; display:inline-block; margin-top:8px;">
+          python -m http.server 8080
+        </code><br>
+        затем <code style="font-size:11px;">http://localhost:8080</code>
+      </div>`;
+    }
+  }
+})();
+</script>
+</body>
+</html>
