@@ -22,19 +22,26 @@
 - IndexedDB привязан к origin `http://192.168.1.100:8080`;
 - **не импортируйте новые файлы формата 4 в старые сборки (до AUD-002a):** старый `importAll` стирает базу (F-1). Новые файлы — только в текущую версию.
 
-## 2. GitHub Pages (после первого пуша)
+## 2. GitHub Pages
 
-Репозиторий: `Dropingcat/livenotepad` (публичный). Деплой — GitHub Actions из `www/`.
+Репозиторий: `Dropingcat/livenotepad` (публичный). Сайт: **https://dropingcat.github.io/livenotepad/**.
 
-Ожидаемый адрес: **https://dropingcat.github.io/livenotepad/**
+Источник Pages — ветка **`gh-pages`** (содержимое `www/` в корне ветки). Обновление после изменений в `main`:
 
-Workflow: `.github/workflows/pages.yml`. В настройках репозитория Pages должен быть источник **GitHub Actions**
-(`gh api -X POST repos/Dropingcat/livenotepad/pages -f build_type=workflow` или Settings → Pages → Source: GitHub Actions).
+```bash
+git add -A
+git commit -m "..."
+git push origin main
+git subtree push --prefix www origin gh-pages
+```
 
 Плюсы:
 - HTTPS, работает из любой сети;
 - `crypto.subtle`, clipboard, downloads — в защищённом контексте;
 - удобно тестировать на телефоне без привязки к домашней Wi-Fi.
+
+Workflow `.github/workflows/pages.yml` — опциональный путь на будущее; он требует OAuth scope `workflow`
+(`gh auth refresh -h github.com -s workflow`) и сейчас в репозиторий не входит.
 
 Важно: IndexedDB **не переносится** между LAN- и Pages-origin. Заметки, созданные на `http://192.168.1.100:8080`,
 не появятся на `https://dropingcat.github.io/livenotepad/`. Для переноса — экспорт/импорт или тестируйте на одном origin.

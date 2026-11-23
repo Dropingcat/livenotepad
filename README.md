@@ -13,8 +13,8 @@ npm run dev     # http://localhost:8080
 
 ## Телефон
 
-- **LAN (сейчас):** `http://192.168.1.100:8080` — телефон должен быть в той же Wi-Fi (`netis-Fox-5G`). Порт 8080 открыт в брандмауэре только для локальной подсети `192.168.1.0/24`.
-- **GitHub Pages (после первого пуша):** `https://dropingcat.github.io/livenotepad/` — HTTPS, доступно из любой сети. Деплой — GitHub Actions из папки `www/`.
+- **GitHub Pages (уже работает):** `https://dropingcat.github.io/livenotepad/` — HTTPS, доступно из любой сети. Сейчас это браузерная версия; установка на домашний экран (PWA) появится после карты `M6-PWA-001` и следующего пуша.
+- **LAN (для отладки):** `http://192.168.1.100:8080` — та же Wi-Fi (`netis-Fox-5G`); порт открыт только для `192.168.1.0/24`. На LAN HTTP нет `crypto.subtle`/`randomUUID`, поэтому для полного функционала используйте Pages.
 
 Подробности и ограничения: [docs/PREVIEW.md](docs/PREVIEW.md).
 

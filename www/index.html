@@ -6,6 +6,9 @@
 <meta name="theme-color" media="(prefers-color-scheme: light)" content="#fafaf7">
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1a1a1c">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
 <title>Живой блокнот · alpha v0.3</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -1667,6 +1670,15 @@ window.addEventListener('beforeunload', () => {
     }
   }
 })();
+
+// Регистрация service worker: app shell в кэше, офлайн-перезапуск.
+// После определения Audit, чтобы не было TDZ.
+if ('serviceWorker' in navigator) {
+  const register = () => navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' })
+    .catch(err => { try { Audit.error('pwa', err, { action: 'registerSW' }); } catch (_) {} });
+  if (document.readyState === 'complete') register();
+  else window.addEventListener('load', register, { once: true });
+}
 </script>
 </body>
 </html>
