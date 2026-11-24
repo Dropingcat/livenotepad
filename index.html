@@ -56,6 +56,10 @@ header { padding: 20px 20px 6px; flex-shrink: 0; position: relative; }
 .overdue-item .due-label { color: var(--overdue); font-size: 11px; font-family: monospace; flex-shrink: 0; }
 .overdue-more { font-size: 11px; color: var(--muted); margin-top: 4px; cursor: pointer; text-decoration: underline; }
 .section-head { padding: 14px 20px 4px; font-size: 11px; color: var(--muted); letter-spacing: 0.5px; }
+/* Тач по заметке/просрочке не должен уходить в нативное выделение текста (long-press). */
+.note, .overdue-item { user-select: none; -webkit-user-select: none; }
+/* Правка текста остаётся обычной: textarea внутри заметки выделяется и редактируется. */
+.note textarea { user-select: text; -webkit-user-select: text; }
 .note { display: flex; align-items: flex-start; padding: 11px 20px; position: relative; transition: transform 0.25s ease, opacity 0.25s ease; touch-action: pan-y; cursor: pointer; }
 .note.closed { opacity: 0.55; }
 .note.closed .note-text { text-decoration: line-through; color: var(--muted); }
@@ -70,8 +74,21 @@ header { padding: 20px 20px 6px; flex-shrink: 0; position: relative; }
 body.diag-on .note-diag { display: block; }
 .note-diag .tag { display: inline-block; padding: 1px 5px; border: 1px solid var(--line); border-radius: 3px; margin-right: 4px; }
 .note-lifetime { font-size: 9px; color: var(--muted); margin-top: 2px; font-family: monospace; font-style: italic; }
-.swipe-bg { position: absolute; top: 0; right: 0; bottom: 0; width: 100%; background: #e8d4d0; display: flex; align-items: center; justify-content: flex-end; padding-right: 24px; color: var(--overdue); font-size: 13px; opacity: 0; pointer-events: none; }
+.swipe-bg { position: absolute; top: 0; right: 0; bottom: 0; width: 100%; background: rgba(102,187,106,0.18); display: flex; align-items: center; justify-content: flex-end; padding-right: 24px; color: #2e7d32; font-size: 13px; opacity: 0; pointer-events: none; }
+@media (prefers-color-scheme: dark) { .swipe-bg { background: rgba(102,187,106,0.22); color: #81c784; } }
 .note.swiping .swipe-bg { opacity: 1; }
+.trash-block { margin: 18px 20px 0; border-top: 1px solid var(--line); padding-top: 8px; }
+.trash-head { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--muted); letter-spacing: .5px; cursor: pointer; user-select: none; padding: 4px 0; }
+.trash-head .chev { transition: transform .2s; display: inline-block; }
+.trash-block.expanded .trash-head .chev { transform: rotate(90deg); }
+.trash-body { padding-bottom: 8px; }
+.note.deleted { opacity: 1; padding-left: 0; padding-right: 0; }
+.note.deleted .note-text { color: #6f6f6a; }
+@media (prefers-color-scheme: dark) { .note.deleted .note-text { color: #a9a9a3; } }
+.note-trash-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 4px; }
+.note-trash-hint { font-size: 10px; color: var(--muted); font-family: monospace; }
+.note-restore { background: none; border: 1px solid var(--line); border-radius: 10px; padding: 2px 10px; font-size: 11px; color: var(--ink); cursor: pointer; font-family: inherit; }
+.note-restore:hover { border-color: var(--accent); }
 .girl { position: fixed; bottom: 20px; right: 20px; width: 240px; background: var(--bg); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); display: flex; gap: 10px; align-items: flex-start; opacity: 0; transform: translateY(20px) scale(0.9); transition: opacity 0.3s, transform 0.3s; pointer-events: none; z-index: 100; }
 .girl.visible { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
 .girl-avatar { width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%; background: linear-gradient(135deg, #FFCC80, #FFB74D); display: flex; align-items: center; justify-content: center; font-size: 24px; position: relative; }
@@ -83,7 +100,7 @@ body.diag-on .note-diag { display: block; }
 .girl-countdown-bar { height: 100%; background: var(--due); width: 100%; transition: width 3.5s linear; }
 .girl.visible .girl-countdown-bar { width: 0%; }
 .girl-undo { display: block; margin-top: 6px; font-size: 11px; color: var(--muted); background: none; border: none; cursor: pointer; font-family: inherit; padding: 2px 0; text-decoration: underline; }
-.branch-menu { position: fixed; z-index: 150; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.15); min-width: 200px; display: none; }
+.branch-menu { position: fixed; z-index: 150; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.15); min-width: 200px; max-height: calc(100vh - 16px); overflow-y: auto; display: none; }
 .branch-menu.visible { display: block; }
 .branch-menu-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 14px; }
 .branch-menu-item:hover { background: rgba(128,128,128,0.1); }
@@ -92,6 +109,7 @@ body.diag-on .note-diag { display: block; }
 .branch-menu-item.sleeping { opacity: 0.5; }
 .branch-menu-item.sleeping .branch-sleep { margin-left: auto; font-size: 10px; color: var(--muted); letter-spacing: 0.3px; }
 .branch-menu-item.clear { color: var(--muted); border-top: 1px solid var(--line); margin-top: 4px; padding-top: 10px; }
+.branch-menu-item.danger { color: var(--overdue); border-top: 1px solid var(--line); margin-top: 4px; padding-top: 10px; }
 footer { padding: 8px 20px 14px; font-size: 10px; color: var(--muted); text-align: center; flex-shrink: 0; border-top: 1px solid var(--line); }
 .toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-60px); background: var(--ink); color: var(--bg); padding: 8px 16px; border-radius: 20px; font-size: 13px; opacity: 0; transition: opacity 0.3s, transform 0.3s; z-index: 300; pointer-events: none; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -235,6 +253,7 @@ import { filterLiveSheet, filterDeletedToday } from './js/live-sheet.js';
 import { branchStatuses } from './js/branches.js';
 import { nextMidnight, startOfDay } from './js/time.js';
 import { applyTextEdit } from './js/note-edit.js';
+import { GESTURE, resolveTouchAction, resolveMouseAction, placeMenu } from './js/gestures.js';
 import { isDuplicateAdd } from './js/dedup.js';
 import { validateImport, planImport } from './js/import.js';
 import { promTx, applyMergePlan, readSnapshot } from './js/idb.js';
@@ -550,7 +569,7 @@ function collectContext() {
   };
 }
 
-const state = { notes: [], diagMode: false, pendingDelete: null, girlTimer: null, diagTapCount: 0, lastAdd: null, adding: false };
+const state = { notes: [], diagMode: false, pendingDelete: null, girlTimer: null, diagTapCount: 0, lastAdd: null, adding: false, trashExpanded: false };
 
 function liveSheet() { return filterLiveSheet(state.notes, Date.now()); }
 
@@ -593,8 +612,9 @@ async function toggleNote(id) {
   const n = state.notes.find(x => x.id === id);
   if (!n) return;
   const now = Date.now();
-  n.completedAt = n.completedAt === null ? now : null;
-  if (n.completedAt !== null) n.reopenedAt = null;
+  const completing = n.completedAt === null;
+  n.completedAt = completing ? now : null;
+  n.reopenedAt = completing ? null : now;
   await DB.putNote(n);
   Audit.log({ ts: now, type: n.completedAt !== null ? 'COMPLETE' : 'REOPEN', source: 'ui', result: 'ok', noteId: n.id });
   await render();
@@ -615,6 +635,10 @@ async function restoreNote(id) {
   n.deletedAt = null;
   await DB.putNote(n);
   Audit.log({ ts: Date.now(), type: 'RESTORE', source: 'ui', result: 'ok', noteId: n.id });
+  // Восстановление из корзины и «вернуть» Листика — одно и то же действие для пользователя:
+  // гасим подсказку, чтобы повторное «вернуть» не дало ложный UNDO_DELETE.
+  hideGirl();
+  state.pendingDelete = null;
   await render();
 }
 
@@ -622,11 +646,14 @@ async function undoDelete() {
   if (!state.pendingDelete) return;
   const id = state.pendingDelete;
   const n = state.notes.find(x => x.id === id);
-  if (n) {
-    n.deletedAt = null;
-    await DB.putNote(n);
-    Audit.log({ ts: Date.now(), type: 'UNDO_DELETE', source: 'ui', result: 'ok', noteId: n.id });
+  // Заметка уже не удалена (её вернули из корзины) или исчезла — не пишем ложный UNDO_DELETE.
+  if (!n || n.deletedAt == null) {
+    hideGirl();
+    return;
   }
+  n.deletedAt = null;
+  await DB.putNote(n);
+  Audit.log({ ts: Date.now(), type: 'UNDO_DELETE', source: 'ui', result: 'ok', noteId: n.id });
   hideGirl();
   await render();
 }
@@ -703,10 +730,6 @@ async function render() {
   const list = document.getElementById('list');
   const sheet = liveSheet();
   const now = Date.now();
-  if (sheet.length === 0) {
-    list.innerHTML = `<div class="empty"><div class="greeting">Жду задачи.</div>Лист открыт, места много.</div>`;
-    return;
-  }
   const open = sheet.filter(n => n.completedAt === null);
   const closed = sheet.filter(n => n.completedAt !== null);
   open.sort((a,b) => {
@@ -722,18 +745,24 @@ async function render() {
   const overdue = open.filter(n => isOverdue(DueStateCalculator.of(n, now)));
   const rest = open.filter(n => !isOverdue(DueStateCalculator.of(n, now)));
   let html = '';
-  if (overdue.length > 0) {
-    html += `<div class="overdue-block" id="overdueBlock"><div class="overdue-head" id="overdueHead"><span>Просрочено · ${overdue.length}</span><span class="chev">›</span></div><div id="overdueBody"></div></div>`;
-  }
-  rest.forEach(n => html += renderNote(n, now));
-  if (closed.length > 0) {
-    html += `<div class="section-head">Сделано сегодня · ${closed.length}</div>`;
-    closed.forEach(n => html += renderNote(n, now));
+  if (sheet.length === 0) {
+    html += `<div class="empty"><div class="greeting">Жду задачи.</div>Лист открыт, места много.</div>`;
+  } else {
+    if (overdue.length > 0) {
+      html += `<div class="overdue-block" id="overdueBlock"><div class="overdue-head" id="overdueHead"><span>Просрочено · ${overdue.length}</span><span class="chev">›</span></div><div id="overdueBody"></div></div>`;
+    }
+    rest.forEach(n => html += renderNote(n, now));
+    if (closed.length > 0) {
+      html += `<div class="section-head">Сделано сегодня · ${closed.length}</div>`;
+      closed.forEach(n => html += renderNote(n, now));
+    }
   }
   const deleted = filterDeletedToday(state.notes, now);
   if (deleted.length > 0) {
-    html += `<div class="section-head trash-head">Удалено сегодня · ${deleted.length}</div>`;
-    deleted.forEach(n => html += renderDeleted(n));
+    html += `<div class="trash-block ${state.trashExpanded ? 'expanded' : ''}" id="trashBlock">
+      <div class="trash-head" id="trashHead"><span>Корзина · ${deleted.length}</span><span class="chev">›</span></div>
+      <div class="trash-body" id="trashBody"${state.trashExpanded ? '' : ' hidden'}>${deleted.map(renderDeleted).join('')}</div>
+    </div>`;
   }
   list.innerHTML = html;
   list.querySelectorAll('[data-restore]').forEach(btn => {
@@ -742,6 +771,15 @@ async function render() {
       restoreNote(btn.dataset.restore);
     });
   });
+  const trashHead = document.getElementById('trashHead');
+  if (trashHead) {
+    trashHead.addEventListener('click', () => {
+      state.trashExpanded = !state.trashExpanded;
+      document.getElementById('trashBlock')?.classList.toggle('expanded', state.trashExpanded);
+      const b = document.getElementById('trashBody');
+      if (b) b.hidden = !state.trashExpanded;
+    });
+  }
   if (overdue.length > 0) {
     const body = document.getElementById('overdueBody');
     const block = document.getElementById('overdueBlock');
@@ -776,7 +814,7 @@ function renderNote(n, now) {
   }
   
   const diagHtml = `<div class="note-diag"><span class="tag">branch: ${n.branch || '?'}</span><span class="tag">conf: ${(n.branchConfidence || 0).toFixed(2)}</span><span class="tag">src: ${n.branchSource || '?'}</span>${n.matchedToken ? `<span class="tag">tok: ${escapeHtml(n.matchedToken)}</span>` : ''}${n.correctionCount ? `<span class="tag">corr: ${n.correctionCount}</span>` : ''}<span class="tag">state: ${dueState}</span></div>${lifetimeHtml}`;
-  return `<div class="note ${closed?'closed':''}" data-id="${escapeHtml(n.id)}"><div class="swipe-bg">удалить</div><div class="note-branch" style="${branchStyle(n.branch)}"></div><div class="note-body"><div class="note-text">${escapeHtml(n.text)}</div>${dueHtml}${diagHtml}</div></div>`;
+  return `<div class="note ${closed?'closed':''}" data-id="${escapeHtml(n.id)}"><div class="swipe-bg">${closed ? 'снять' : 'выполнено'}</div><div class="note-branch" style="${branchStyle(n.branch)}"></div><div class="note-body"><div class="note-text">${escapeHtml(n.text)}</div>${dueHtml}${diagHtml}</div></div>`;
 }
 
 function renderDeleted(n) {
@@ -786,65 +824,152 @@ function renderDeleted(n) {
 function attachNoteHandlers() {
   document.querySelectorAll('.note:not(.deleted)').forEach(el => {
     const id = el.dataset.id;
-    let startX = 0, startY = 0, currentX = 0;
-    let swiping = false, moved = false, tapStart = 0;
-    let longPressTimer = null, longPressed = false;
-    const clearLongPress = () => { if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; } };
+
+    // ── Касание ──────────────────────────────────────────────────────────
+    let startX = 0, startY = 0, dxRaw = 0, dyRaw = 0;
+    let tapStart = 0, longPressed = false, touchTimer = null;
+    let multi = false, lastTouchTs = 0;
+    const clearTouchTimer = () => { if (touchTimer) { clearTimeout(touchTimer); touchTimer = null; } };
+    const resetTouch = () => { dxRaw = 0; dyRaw = 0; longPressed = false; };
+    // После touchend браузер шлёт compatibility mouse events (mousedown → mouseup → click)
+    // и click. Основная защита — preventDefault в touchend; guard ниже страхует,
+    // если compat-событие всё же пришло (Safari/старые Chrome).
+    const isCompatMouse = e =>
+      (e.sourceCapabilities && e.sourceCapabilities.firesTouchEvents) || Date.now() - lastTouchTs < 700;
+
     el.addEventListener('touchstart', e => {
+      lastTouchTs = Date.now();
+      // Касание заметки больше не порождает click (touchend гасит compatibility
+      // события), поэтому открытое меню закрываем здесь — до фикса это делал
+      // document-click. Поведение то же: тап мимо меню его закрывает.
+      const openMenu = document.getElementById('branchMenu');
+      if (openMenu.classList.contains('visible')) openMenu.classList.remove('visible');
+      if (e.touches.length !== 1) {          // второй палец: жест отменяем, меню не открываем
+        clearTouchTimer();
+        multi = true;
+        return;
+      }
+      multi = false;
       startX = e.touches[0].clientX; startY = e.touches[0].clientY;
       const touchX = startX, touchY = startY;
-      currentX = 0; swiping = false; moved = false; tapStart = Date.now(); longPressed = false;
-      longPressTimer = setTimeout(() => { longPressed = true; openBranchMenu(id, touchX, touchY); }, TUNING.LONG_PRESS_MS);
+      resetTouch();
+      tapStart = Date.now();
+      clearTouchTimer();
+      touchTimer = setTimeout(() => { longPressed = true; openBranchMenu(id, touchX, touchY); }, TUNING.LONG_PRESS_MS);
     }, { passive: true });
+
     el.addEventListener('touchmove', e => {
-      const dx = e.touches[0].clientX - startX, dy = e.touches[0].clientY - startY;
-      if (Math.abs(dx) > 8 || Math.abs(dy) > 8) clearLongPress();
-      if (!swiping && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) { swiping = true; el.classList.add('swiping'); }
-      if (swiping && dx < 0) { currentX = Math.max(dx, -150); el.style.transform = `translateX(${currentX}px)`; moved = true; }
+      lastTouchTs = Date.now();
+      // Мультитач: второй палец мог лечь вне заметки, поэтому проверяем число
+      // касаний, а не то, попал ли он в этот элемент. Жест отменяем.
+      if (e.touches.length !== 1) { clearTouchTimer(); multi = true; return; }
+      dxRaw = e.touches[0].clientX - startX;
+      dyRaw = e.touches[0].clientY - startY;
+      const ax = Math.abs(dxRaw), ay = Math.abs(dyRaw);
+      if (ax > GESTURE.MOVE_THRESHOLD || ay > GESTURE.MOVE_THRESHOLD) clearTouchTimer();
+      // Свайп влево — подсказка «выполнено/снять»; вправо и вертикаль ничего не делают.
+      if (dxRaw < -GESTURE.MOVE_THRESHOLD && ax > ay) {
+        el.classList.add('swiping');
+        el.style.transform = `translateX(${Math.max(dxRaw, -GESTURE.SWIPE_MAX)}px)`;
+      } else {
+        el.classList.remove('swiping');
+        el.style.transform = '';
+      }
     }, { passive: true });
-    el.addEventListener('touchend', () => {
-      clearLongPress(); el.classList.remove('swiping');
-      if (longPressed) { longPressed = false; return; }
-      if (swiping && currentX < -80) {
-        el.classList.add('deleting');
-        setTimeout(async () => { state.pendingDelete = id; showGirl(); await deleteNote(id); }, 250);
-      } else {
+
+    el.addEventListener('touchend', e => {
+      // preventDefault на touchend отменяет compatibility mouse events и click:
+      // без него тап даёт двойной toggle, а long-press тут же закрывает меню.
+      e.preventDefault();
+      lastTouchTs = Date.now();
+      clearTouchTimer();
+      // Мультитач: второй палец вне заметки тоже считается. Пока на экране
+      // остаётся палец — жест не завершаем и не переключаем заметку.
+      if (multi || e.touches.length > 0) {
+        el.classList.remove('swiping');
         el.style.transform = '';
-        if (!moved && Date.now() - tapStart < 300) toggleNote(id);
+        if (e.touches.length === 0) { multi = false; resetTouch(); }
+        return;
       }
-      swiping = false;
+      const action = resolveTouchAction({ dx: dxRaw, dy: dyRaw, durationMs: Date.now() - tapStart, longPressed });
+      el.classList.remove('swiping');
+      el.style.transform = '';
+      resetTouch();
+      // Только выполнение/снятие. Удаление из касаний невозможно.
+      if (action === 'toggle') toggleNote(id);
+    }, { passive: false });
+
+    el.addEventListener('touchcancel', () => {
+      lastTouchTs = Date.now();
+      multi = false;
+      clearTouchTimer();
+      el.classList.remove('swiping');
+      el.style.transform = '';
+      resetTouch();
     });
-    let mouseDown = false, mouseStartX = 0, mouseTimer = null;
+
+    // ── Мышь ─────────────────────────────────────────────────────────────
+    let mouseDown = false, mouseStartX = 0, mouseStartY = 0;
+    let mouseMoved = false, mouseLong = false, mouseTimer = null, mouseTapStart = 0;
+    const clearMouseTimer = () => { if (mouseTimer) { clearTimeout(mouseTimer); mouseTimer = null; } };
+
     el.addEventListener('mousedown', e => {
-      mouseDown = true; mouseStartX = e.clientX; tapStart = Date.now(); longPressed = false;
+      if (isCompatMouse(e)) return;             // compatibility-событие после касания
+      if (e.button !== 0) return;               // ПКМ и средняя кнопка в жестах не участвуют
+      mouseDown = true;
+      mouseStartX = e.clientX; mouseStartY = e.clientY;
+      mouseMoved = false; mouseLong = false;
+      mouseTapStart = Date.now();
+      clearMouseTimer();
       const mx = e.clientX, my = e.clientY;
-      mouseTimer = setTimeout(() => { longPressed = true; openBranchMenu(id, mx, my); }, TUNING.LONG_PRESS_MS);
+      mouseTimer = setTimeout(() => { mouseLong = true; openBranchMenu(id, mx, my); }, TUNING.LONG_PRESS_MS);
     });
+
     el.addEventListener('mousemove', e => {
-      if (!mouseDown) return;
-      const dx = e.clientX - mouseStartX;
-      if (Math.abs(dx) > 8) { clearTimeout(mouseTimer); mouseTimer = null; }
-      if (dx < -10) { el.classList.add('swiping'); currentX = Math.max(dx, -150); el.style.transform = `translateX(${currentX}px)`; moved = true; }
-    });
-    el.addEventListener('mouseup', () => {
-      clearTimeout(mouseTimer); mouseDown = false; el.classList.remove('swiping');
-      if (longPressed) { longPressed = false; return; }
-      if (currentX < -80) {
-        el.classList.add('deleting');
-        setTimeout(async () => { state.pendingDelete = id; showGirl(); await deleteNote(id); }, 250);
-      } else {
-        el.style.transform = '';
-        if (!moved && Date.now() - tapStart < 300) toggleNote(id);
+      if (isCompatMouse(e)) return;
+      if (!mouseDown || !(e.buttons & 1)) return;
+      if (Math.abs(e.clientX - mouseStartX) > GESTURE.MOVE_THRESHOLD || Math.abs(e.clientY - mouseStartY) > GESTURE.MOVE_THRESHOLD) {
+        mouseMoved = true;
+        clearMouseTimer();
       }
-      currentX = 0; moved = false;
     });
+
+    el.addEventListener('mouseup', e => {
+      if (isCompatMouse(e)) return;
+      clearMouseTimer();
+      if (e.button !== 0) { mouseDown = false; return; }
+      if (!mouseDown) return;
+      mouseDown = false;
+      const wasLong = mouseLong;
+      const action = resolveMouseAction({ button: 0, moved: mouseMoved, durationMs: Date.now() - mouseTapStart, longPressed: wasLong });
+      // Отпускание после long-press: click с target = заметка не должен закрыть
+      // меню, сколько бы ни длилось удержание (M-1).
+      if (wasLong) suppressMenuClickUntil = Date.now() + 150;
+      mouseMoved = false; mouseLong = false;
+      // Перетаскивание мышью и ПКМ до сюда не доходят; удаления здесь нет.
+      if (action === 'toggle') toggleNote(id);
+    });
+
     el.addEventListener('mouseleave', () => {
-      clearTimeout(mouseTimer);
-      if (mouseDown) { mouseDown = false; el.style.transform = ''; el.classList.remove('swiping'); currentX = 0; }
+      clearMouseTimer();
+      mouseDown = false; mouseMoved = false; mouseLong = false;
     });
-    el.addEventListener('contextmenu', e => { e.preventDefault(); openBranchMenu(id, e.clientX, e.clientY); });
+
+    el.addEventListener('contextmenu', e => {
+      e.preventDefault();                       // нативное меню не нужно ни на мыши, ни на таче
+      if (isCompatMouse(e)) return;             // меню уже открыто touch-веткой
+      clearMouseTimer();
+      mouseLong = true;
+      openBranchMenu(id, e.clientX, e.clientY);
+    });
   });
 }
+
+// Подавление «клика-хвоста» открывающего жеста (синтетический click после
+// long-press/contextmenu). Привязано к жесту, а не к скользящему окну:
+// после открытия меню гасится только ближайший click, а осознанный тап
+// по пункту через 150+ мс проходит.
+let suppressMenuClickUntil = 0;
 
 function openBranchMenu(noteId, x, y) {
   const note = state.notes.find(n => n.id === noteId);
@@ -860,17 +985,31 @@ function openBranchMenu(noteId, x, y) {
       ? '<span style="margin-left:auto">✓</span>'
       : (sleeping ? '<span class="branch-sleep">спит</span>' : '');
     return `<div class="branch-menu-item ${isCurrent?'current':''} ${sleeping?'sleeping':''}" data-branch="${k}"><div class="branch-menu-swatch" style="${branchStyle(k)}"></div><span>${BRANCHES[k].name}</span>${tail}</div>`;
-  }).join('') + `<div class="branch-menu-item clear" data-branch="">× Убрать ветку</div>`;
+  }).join('') + `<div class="branch-menu-item clear" data-branch="">× Убрать ветку</div>`
+    + `<div class="branch-menu-item clear danger" data-action="delete"><span class="branch-menu-swatch" style="background: var(--overdue); display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--bg)">🗑</span><span>Удалить</span></div>`;
   menu.classList.add('visible');
-  const vw = window.innerWidth, vh = window.innerHeight;
-  menu.style.left = Math.min(x, vw - 220) + 'px';
-  menu.style.top = Math.min(y + 10, vh - 300) + 'px';
+  suppressMenuClickUntil = Date.now() + 150;
+  const rect = menu.getBoundingClientRect();
+  const { left, top } = placeMenu({
+    x, y, vw: window.innerWidth, vh: window.innerHeight,
+    menuW: rect.width, menuH: rect.height
+  });
+  menu.style.left = left + 'px';
+  menu.style.top = top + 'px';
   menu.querySelectorAll('.branch-menu-item').forEach(item => {
     item.onclick = (e) => {
       e.stopPropagation();
       if (item.dataset.action === 'edit') {
         menu.classList.remove('visible');
         startEdit(note.id);
+        return;
+      }
+      if (item.dataset.action === 'delete') {
+        menu.classList.remove('visible');
+        Audit.log({ type: 'UI', source: 'ui', result: 'ok', noteId: note.id, details: { action: 'menuDelete' } });
+        state.pendingDelete = note.id;
+        showGirl();
+        deleteNote(note.id);
         return;
       }
       const br = item.dataset.branch;
@@ -925,8 +1064,14 @@ function startEdit(id) {
 
 document.addEventListener('click', e => {
   const menu = document.getElementById('branchMenu');
-  if (menu.classList.contains('visible') && !menu.contains(e.target)) menu.classList.remove('visible');
-});
+  if (!menu.classList.contains('visible')) return;
+  // Гасим только click-хвост открывающего жеста (синтетический click после
+  // long-press/ПКМ). Подавление короткое и привязано к жесту, поэтому тап
+  // по пункту меню через 150+ мс срабатывает (M-2), а клик вне меню —
+  // закрывает её (M-1).
+  if (Date.now() < suppressMenuClickUntil) { e.stopPropagation(); e.preventDefault(); return; }
+  if (!menu.contains(e.target)) menu.classList.remove('visible');
+}, true);
 
 const PHRASES = ['Оно сейчас пропадёт…', 'Точно? Ещё три секунды…', 'Уйдёт. Уверен?', 'Подожди, можно вернуть…', 'Уносу? Ну ладно…'];
 function showGirl() {
