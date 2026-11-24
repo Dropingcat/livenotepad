@@ -17,6 +17,7 @@ www/js/due-state.js     состояние срока, STALE/OVERDUE
 www/js/live-sheet.js    живой лист, корзина дня
 www/js/branches.js      статусы веток, спящие
 www/js/note-edit.js     правка текста без смены ветки
+www/js/gestures.js      чистые решатели жестов (тап/свайп/long-press, мышь)
 www/js/dedup.js         дедуп добавления
 www/js/import.js        validateImport, planImport, computeMetaFromEvidence
 www/js/idb.js           promTx, applyMergePlan
@@ -61,16 +62,38 @@ www/js/audit.js         события аудита, ошибки, выгруз�
 
 Выгрузка: `format: livenotepad-audit`, `version: 1`, meta + `events[]`, сортировка по `ts`, counts events/errors/failed, `pending`/`lost`. Pending-события fallback подмешиваются с дедупликацией по `eventId`; сбой чтения БД не маскируется пустым файлом. «Скачать аудит» на телефоне: URL файла отзывается через 1 с после клика.
 
-## 5. Тесты и гейты
+## 5. Жесты и ввод
 
-- `npm test` — `node --test`, чистые модули; сейчас 171+ тест.
+`www/js/gestures.js` — чистые решатели без DOM и времени: `GESTURE` (`TAP_MAX_MS: 300`, `MOVE_THRESHOLD: 8`, `SWIPE_MIN: 60`, `SWIPE_MAX: 150`), `resolveTouchAction({ dx, dy, durationMs, longPressed })` и `resolveMouseAction({ button, moved, durationMs, longPressed })` → `'menu' | 'toggle' | 'none'`. Координаты, длительность и факт long-press передаются аргументами.
+
+| Ввод | Действие |
+|---|---|
+| Касание, тап < 300 мс | выполнено/снять (`toggleNote`) |
+| Свайп влево ≥ 60 px и левее вертикали | выполнено/снять; зелёная подсказка «выполнено»/«снять» |
+| Свайп вправо, вертикальный скролл, диагональ, мультитач | ничего |
+| Long-press 300 мс (касание, ЛКМ или ПКМ) | меню ветки |
+| ЛКМ тап | выполнено/снять |
+| ПКМ и средняя кнопка | только меню (`contextmenu`, `preventDefault`); `completedAt` не меняется |
+| Перетаскивание мышью | ничего (свайп мышью отключён) |
+
+**Compatibility mouse events.** После `touchend` браузер шлёт `mousedown → mouseup → click`; без защиты тап даёт двойной `toggle`, а long-press закрывает меню. Защита трёхуровневая: `touchend` слушается с `{ passive: false }` и вызывает `preventDefault()`; в `mousedown`/`mousemove`/`mouseup`/`contextmenu` первым стоит guard `e.sourceCapabilities.firesTouchEvents || Date.now() - lastTouchTs < 700`; на `.note` стоит `user-select: none`.
+
+**Меню.** Позиционируется через чистую `placeMenu` (раскрытие вверх, если снизу не помещается; кламп по фактической высоте `getBoundingClientRect`), `max-height: calc(100vh - 16px)` + прокрутка. Клик, который браузер шлёт сразу после открытия (или после отпускания long-press), гасится окном `suppressMenuClickUntil` (150 мс), продлеваемым на `mouseup`; осознанный тап по пункту после этого окна работает.
+
+Удаление возможно только пунктом «Удалить» в меню ветки: Листик + undo 3.5 с, события `DELETE`/`UNDO_DELETE` в аудите. Ни один путь touch/mouse не вызывает `deleteNote`. `restoreNote` прячет Листика и чистит `pendingDelete`, поэтому повторный `undoDelete` не пишет ложный `UNDO_DELETE`.
+
+Корзина дня — свёрнутый блок `.trash-block` внизу листа; состояние в `state.trashExpanded` (по умолчанию `false`). Голова «Корзина · N» раскрывает `.trash-body` без вызова `render()` (не сбрасывает прокрутку), «вернуть» вызывает `restoreNote`. При нуле удалённых блок не рисуется; раскрытие переживает `render()`. Текст удалённой заметки — явный контрастный цвет (`#6f6f6a` / `#a9a9a3` в тёмной теме), без `opacity` на тексте.
+
+## 6. Тесты и гейты
+
+- `npm test` — `node --test`, чистые модули; сейчас 242 теста (в т.ч. 25 на `gestures`).
 - `node --check` модулей.
 - Inline-модуль: извлечение по маркерам `<script type="module">…</script>`, не по номерам строк.
-- Браузерный гейт: headless Chrome + CDP (`C:\Temp\opencode\app-gate.mjs`), сценарий в контексте страницы,
-  артефакт с `appHash` (SHA-256 `www/index.html`), `stepCount/passCount`, `consoleErrors`.
+- **DOM-гейт:** headless Chrome + CDP (`C:\Temp\opencode\app-gate.mjs`), свежий профиль на прогон (герметичность), сценарий в контексте страницы, артефакт с `appHash`, `expressionHash`, `stepCount/passCount`, `consoleErrors`. Для UX-001 — 27 шагов.
+- **Real-touch гейт:** `C:\Temp\opencode\touch-gate.mjs` — `Emulation.setTouchEmulationEnabled` + `Input.dispatchTouchEvent` (mobile 390×844), потому что синтетические JS-события не порождают compatibility mouse events. Для UX-001 — 7 шагов.
 - Артефакты — `.runs/M2/artifacts/<CARD>/`, отчёты — `.runs/M2/reports/`.
 
-## 6. Процесс
+## 7. Процесс
 
 `worker → reviewer → (REQUEST_CHANGES → fix → re-review) → auditor → analyst → researcher → deploy`.
 
@@ -79,7 +102,7 @@ www/js/audit.js         события аудита, ошибки, выгруз�
 - Находки классифицируются по 09 (уровни 1/2/3), техдолги — `TD-DEV-*` в `docs/PROBLEMS_REGISTER.md`.
 - Снапшот `.runs/M2/snapshot/` обновляется после закрытия карты; финальный — при деплое M2.
 
-## 7. Ограничения
+## 8. Ограничения
 
 - Один пользователь, один браузер, локальные данные; синхронизации нет.
 - `training_log` не переживает «Сброс»; отдельный append-only store — 002d.

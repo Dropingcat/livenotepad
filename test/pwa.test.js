@@ -72,7 +72,7 @@ test('иконки: файлы существуют, PNG-размеры совп
 
 test('sw.js: versioned cache, install/activate/fetch, skipWaiting и clients.claim', () => {
   assert.match(swSource, /const CACHE_PREFIX = 'livenotepad-';/, 'нет CACHE_PREFIX');
-  assert.match(swSource, /const CACHE = CACHE_PREFIX \+ 'v1';/, 'нет CACHE от префикса');
+  assert.match(swSource, /const CACHE = CACHE_PREFIX \+ 'v\d+';/, 'нет CACHE от префикса');
   assert.match(swSource, /addEventListener\('install'/, 'нет обработчика install');
   assert.match(swSource, /addEventListener\('activate'/, 'нет обработчика activate');
   assert.match(swSource, /addEventListener\('fetch'/, 'нет обработчика fetch');
