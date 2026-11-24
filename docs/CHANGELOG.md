@@ -37,6 +37,11 @@
   - MIME Pages: `manifest.webmanifest` → `application/manifest+json`, `sw.js` → `application/javascript`.
   - TD-DEV-15/16 закрыты; TD-DEV-17 (точность отчёта) — OPEN, не блокирует.
 
+### Документация
+- **`docs/GETTING_STARTED.md`** — подробное руководство: что за приложение, открытие на компьютере, что значит «Установить приложение», отличия от вкладки, проверка офлайна, сохранение аудита, где хранятся данные, разбор типовых проблем.
+- README: раздел «Телефон» с шагами установки, актуальные 217 тестов, ссылки на все доки.
+- `docs/PWA.md` §2: пошаговая установка, таблица «вкладка ↔ приложение», признаки installability, troubleshooting.
+
 ### Git / Pages
 - Публичный репозиторий: `https://github.com/Dropingcat/livenotepad`.
 - Live: `https://dropingcat.github.io/livenotepad/` (ветка `gh-pages`, содержимое `www/`).

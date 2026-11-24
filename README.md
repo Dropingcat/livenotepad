@@ -5,15 +5,22 @@
 ## Быстрый старт
 
 ```bash
-npm test        # 171+ тест, node:test
+npm install     # один раз
+npm test        # 217 тестов, node:test
 npm run dev     # http://localhost:8080
 ```
 
 Открыть `http://localhost:8080`. Первый запуск создаёт 5 seed-заметок.
 
+**Полное руководство «с нуля до приложения на телефоне» — [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).**
+
 ## Телефон
 
-- **GitHub Pages (PWA, уже работает):** `https://dropingcat.github.io/livenotepad/` — HTTPS, установка на домашний экран Android, офлайн. Инструкция: [docs/PWA.md](docs/PWA.md).
+- **GitHub Pages (PWA, уже работает):** `https://dropingcat.github.io/livenotepad/` — HTTPS, установка на домашний экран Android, офлайн.
+  - Chrome → меню **⋮** → **«Установить приложение»** (или «Добавить на главный экран») → «Установить» → иконка на экране.
+  - Запуск с иконки: отдельное окно без адресной строки.
+  - Проверка: авиарежим → закрыть → открыть — лист и данные на месте.
+  - Подробно про установку, отличия от вкладки, офлайн и разбор проблем: [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md), [docs/PWA.md](docs/PWA.md).
 - **LAN (для отладки):** `http://192.168.1.100:8080` — та же Wi-Fi (`netis-Fox-5G`); порт открыт только для `192.168.1.0/24`. LAN HTTP — не secure context: нет `crypto.subtle`/`randomUUID`, install PWA недоступен; для полного функционала — Pages.
 
 Подробности и ограничения: [docs/PREVIEW.md](docs/PREVIEW.md).
@@ -50,12 +57,14 @@ docs/                спеки, планы, архитектура, превь�
   - M6-PWA-001 (manifest/service worker/иконки, установка на Android, офлайн) — закрыт: 217/217 тестов, PWA-гейт 6/6 на Pages.
 - **M3–M7** — спеки пишутся перед стартом каждого этапа; M6 (Capacitor) — отдельным заходом.
 
-Известные техдолги: `TD-DEV-1…8` в [PROBLEMS_REGISTER.md](docs/PROBLEMS_REGISTER.md).
+Известные техдолги: `TD-DEV-1…17` в [PROBLEMS_REGISTER.md](docs/PROBLEMS_REGISTER.md).
 
 ## Документация
 
+- [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) — от ссылки до приложения на телефоне: установка, офлайн, аудит, проблемы.
 - [docs/PREVIEW.md](docs/PREVIEW.md) — локальный и телефонный превью.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — модули, данные, инварианты.
+- [docs/PWA.md](docs/PWA.md) — манифест, service worker, установка, обновления.
 - [docs/AUDIT.md](docs/AUDIT.md) — формат аудита и разбор.
 - [docs/CHANGELOG.md](docs/CHANGELOG.md) — изменения по этапам.
 - [docs/superpowers/specs/](docs/superpowers/specs/) — дизайны (фабрика, импорт/экспорт, аудит).
