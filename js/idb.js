@@ -2,6 +2,27 @@
 // Модуль без DOM; работает с любым IDB-подобным объектом (в тестах — fake),
 // поэтому атомарность проверяется без браузера.
 
+import { TUNING } from './constants.js';
+
+/**
+ * Чистая функция распада (decay) для evidence.
+ * Уменьшает evidence на decayAmount за каждый полный период decayDays.
+ * Никогда не уходит ниже 1. Не мутирует вход.
+ * @param {Object} row — запись word_evidence
+ * @param {number} [now=Date.now()] — текущий таймстамп
+ * @returns {Object} — новая запись (или та же, если изменений нет)
+ */
+export function applyDecay(row, now = Date.now()) {
+  if (!row || typeof row.evidence !== 'number' || row.evidence <= 0) return row;
+  const elapsed = now - (row.lastSeenAt || now);
+  if (elapsed <= 0) return row;
+  const periods = Math.floor(elapsed / (TUNING.DECAY_DAYS * 86400000));
+  if (periods <= 0) return row;
+  const newEvidence = Math.max(1, row.evidence - periods * TUNING.DECAY_AMOUNT);
+  if (newEvidence === row.evidence) return row;
+  return { ...row, evidence: newEvidence };
+}
+
 export function promTx(tx, req) {
   return new Promise((resolve, reject) => {
     let result;
