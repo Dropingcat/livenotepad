@@ -1,0 +1,32 @@
+{
+  "manifest_version": 2,
+  "name": "Живой блокнот",
+  "version": "0.1",
+  "description": "Боковая панель для заметок на день: живой лист, сроки, ветки, корзина.",
+  "author": "Dropingcat",
+  "homepage_url": "https://dropingcat.github.io/livenotepad/",
+  "icons": {
+    "48": "icons/icon-48.png",
+    "96": "icons/icon-96.png",
+    "128": "icons/icon-128.png"
+  },
+  "sidebar_action": {
+    "default_panel": "sidebar.html",
+    "default_title": "Блокнот",
+    "default_icon": "icons/icon-48.png"
+  },
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "permissions": [
+    "storage",
+    "alarms",
+    "notifications"
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "livenotepad@dropingcat.github.io",
+      "strict_min_version": "109.0"
+    }
+  }
+}
