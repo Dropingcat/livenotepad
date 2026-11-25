@@ -21,6 +21,7 @@ const ASSETS = [
   './js/gestures.js',
   './js/dedup.js',
   './js/import.js',
+  './js/export-format.js',
   './js/idb.js',
   './js/audit.js',
   './icons/icon-192.png',

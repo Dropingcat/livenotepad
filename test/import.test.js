@@ -177,8 +177,8 @@ test('validateImport: logs и training_log вместе — training_log выи�
     training_log: [{ ts: 2, type: 'COMPLETE' }]
   });
   assert.deepEqual(result.errors, []);
-  assert.equal(result.sections.training_log.length, 1);
-  assert.equal(result.sections.training_log[0].type, 'COMPLETE');
+  assert.equal(result.content.training_log.length, 1);
+  assert.equal(result.content.training_log[0].type, 'COMPLETE');
   assert.ok(result.warnings.some(w => w.includes('logs отброшен: используется training_log')));
 });
 
@@ -223,7 +223,7 @@ test('validateImport: tuning даёт warning «не применяется»', 
 test('validateImport: logs — алиас training_log', () => {
   const result = validateImport({ notes: [], logs: [{ ts: 1, type: 'CREATE' }] });
   assert.deepEqual(result.errors, []);
-  assert.equal(result.sections.training_log.length, 1);
+  assert.equal(result.content.training_log.length, 1);
   assert.equal(result.counts.training_log, 1);
   assert.ok(result.warnings.some(w => w.includes('logs')));
 });
@@ -238,7 +238,7 @@ test('validateImport: новый формат {data:{...}} принимаетс�
     }
   });
   assert.deepEqual(result.errors, []);
-  assert.equal(result.sections.notes.length, 1);
+  assert.equal(result.content.notes.length, 1);
   assert.equal(result.counts.notes, 1);
 });
 

@@ -256,6 +256,7 @@ import { applyTextEdit } from './js/note-edit.js';
 import { GESTURE, resolveTouchAction, resolveMouseAction, placeMenu } from './js/gestures.js';
 import { isDuplicateAdd } from './js/dedup.js';
 import { validateImport, planImport } from './js/import.js';
+import { buildExport, validateExport, computeFileHash } from './js/export-format.js';
 import { promTx, applyMergePlan, readSnapshot } from './js/idb.js';
 import {
   makeEvent, errorEvent, createSessionId, getOrCreateDeviceId,
@@ -1503,18 +1504,16 @@ const Monitor = (() => {
 
   async function exportAll() {
     try {
-      const data = {
-        version: 'alpha-v0.3',
-        schemaVersion: 3,
-        exportedAt: new Date().toISOString(),
-        tuning: TUNING,
-        notes: await DB.getAllNotes(),
-        word_evidence: await DB.getAllEvidence(),
-        word_meta: await DB.getAllMeta(),
-        training_log: await DB.getAllLogs()
-      };
+      const snapshot = await DB.getSnapshot();
+      const data = buildExport({
+        mode: 'full',
+        dbSnapshot: snapshot,
+        appVersion: APP_VERSION,
+        deviceId: getOrCreateDeviceId(auditStorage()),
+        sessionId: Audit.meta.sessionId
+      });
       downloadJSON(data, 'livenotepad-full');
-      Audit.log({ type: 'EXPORT', source: 'export', result: 'ok', counts: { notes: data.notes.length, evidence: data.word_evidence.length, meta: data.word_meta.length, logs: data.training_log.length }, mode: 'all' });
+      Audit.log({ type: 'EXPORT', source: 'export', result: 'ok', counts: { notes: data.counts.notes, evidence: data.counts.evidence, meta: data.counts.meta, logs: data.counts.logs }, mode: 'all' });
       toast('Полный экспорт сохранён');
     } catch (e) { Audit.error('export', e, { action: 'exportAll' }); toast('Ошибка: ' + e.message); }
   }
@@ -1529,8 +1528,10 @@ const Monitor = (() => {
       const safeError = err => (err && (err.message || err.name)) || String(err);
 
       let data;
+      let fileBytes;
       try {
-        const text = await file.text();
+        fileBytes = new Uint8Array(await file.arrayBuffer());
+        const text = new TextDecoder().decode(fileBytes);
         data = JSON.parse(text);
       } catch (err) {
         Audit.error('import', err, { action: 'importParse' });
@@ -1538,15 +1539,50 @@ const Monitor = (() => {
         return;
       }
 
-      const validation = validateImport(data);
-      if (validation.errors.length > 0) {
-        Audit.log({ type: 'IMPORT', source: 'ui', result: 'error', mode: 'merge', details: { message: validation.errors[0], errors: validation.errors.slice(0, 10) } });
-        toast('Импорт отклонён: ' + validation.errors[0]);
-        return;
+      // Валидация манифеста (формат 4)
+      let importContent;
+      let importCounts;
+      const manifestValidation = validateExport(data);
+      if (manifestValidation.errors.length > 0) {
+        // Если манифест не прошёл — пробуем старый validateImport
+        const val = validateImport(data);
+        if (val.errors.length > 0) {
+          Audit.log({ type: 'IMPORT', source: 'ui', result: 'error', mode: 'merge', details: { message: val.errors[0], errors: val.errors.slice(0, 10) } });
+          toast('Импорт отклонён: ' + val.errors[0]);
+          return;
+        }
+        importContent = val.content;
+        importCounts = val.counts;
+        // checksum для легаси-файлов не проверяем
+      } else {
+        importContent = manifestValidation.content;
+        importCounts = manifestValidation.counts;
+
+        // Проверка checksum
+        const exportId = data.exportId;
+        if (data.checksum !== undefined && manifestValidation.warnings.some(w => w.includes('checksum') && w.includes('не совпадает'))) {
+          if (!confirm('Предупреждение: checksum файла не совпадает. Данные могли быть повреждены.\n\nИмпортировать без проверки (только объединить)?')) return;
+        }
+        if (data.checksum === undefined && manifestValidation.warnings.some(w => w.includes('checksum') && w.includes('отсутствует'))) {
+          if (!confirm('Файл не содержит checksum (целостность не подтверждена).\n\nПродолжить импорт?')) return;
+        }
       }
-      if (validation.warnings.length > 0) {
-        if (!confirm('Предупреждения импорта:\n' + validation.warnings.join('\n') + '\n\nПродолжить?')) return;
+
+      // Объединяем warnings из обоих валидаторов
+      let allWarnings = manifestValidation.errors.length === 0 ? manifestValidation.warnings : [];
+      if (manifestValidation.errors.length > 0) {
+        const val = validateImport(data);
+        allWarnings = val.warnings;
       }
+      if (allWarnings.length > 0) {
+        if (!confirm('Предупреждения импорта:\n' + allWarnings.join('\n') + '\n\nПродолжить?')) return;
+      }
+
+      // Вычисляем fileHash для IMPORT события
+      let fileHash = null;
+      try {
+        fileHash = computeFileHash(fileBytes, data.exportId || 'unknown');
+      } catch (_) {}
 
       const logImportError = err => {
         Audit.error('import', err, { action: 'importMerge' });
@@ -1556,7 +1592,7 @@ const Monitor = (() => {
           mode: 'merge',
           source: 'ui',
           result: 'error',
-          details: { message: safeError(err) }
+          details: { message: safeError(err), fileHash }
         });
       };
 
@@ -1571,10 +1607,10 @@ const Monitor = (() => {
             logs: snapshot.logs
           },
           {
-            notes: validation.sections.notes,
-            evidence: validation.sections.word_evidence,
-            meta: validation.sections.word_meta,
-            logs: validation.sections.training_log
+            notes: importContent.notes,
+            evidence: importContent.word_evidence,
+            meta: importContent.word_meta,
+            logs: importContent.training_log
           }
         );
         const summary = `Слияние без удаления:\n`
@@ -1589,7 +1625,7 @@ const Monitor = (() => {
         return;
       }
 
-      plan.logs.push(Audit.event({ ts: Date.now(), type: 'IMPORT', mode: 'merge', source: 'ui', result: 'ok', counts: plan.stats }));
+      plan.logs.push(Audit.event({ ts: Date.now(), type: 'IMPORT', mode: 'merge', source: 'ui', result: 'ok', counts: plan.stats, fileHash, exportId: data.exportId || undefined }));
       try {
         await DB.mergeAll(plan);
       } catch (err) {
@@ -1636,34 +1672,49 @@ const Monitor = (() => {
 
   async function exportNotes() {
     try {
-      const notes = await DB.getAllNotes();
-      downloadJSON({ version: 'alpha-v0.3', schemaVersion: 3, exportedAt: new Date().toISOString(), count: notes.length, notes }, 'livenotepad-notes');
-      Audit.log({ type: 'EXPORT', source: 'export', result: 'ok', counts: { notes: notes.length }, mode: 'notes' });
-      toast(`Экспортировано ${notes.length} заметок`);
+      const snapshot = await DB.getSnapshot();
+      const data = buildExport({
+        mode: 'notes',
+        dbSnapshot: snapshot,
+        appVersion: APP_VERSION,
+        deviceId: getOrCreateDeviceId(auditStorage()),
+        sessionId: Audit.meta.sessionId
+      });
+      downloadJSON(data, 'livenotepad-notes');
+      Audit.log({ type: 'EXPORT', source: 'export', result: 'ok', counts: { notes: data.counts.notes }, mode: 'notes' });
+      toast(`Экспортировано ${data.counts.notes} заметок`);
     } catch (e) { Audit.error('export', e, { action: 'exportNotes' }); toast('Ошибка: ' + e.message); }
   }
 
   async function exportLearning() {
     try {
-      const data = {
-        version: 'alpha-v0.3',
-        schemaVersion: 3,
-        exportedAt: new Date().toISOString(),
-        word_evidence: await DB.getAllEvidence(),
-        word_meta: await DB.getAllMeta()
-      };
+      const snapshot = await DB.getSnapshot();
+      const data = buildExport({
+        mode: 'learning',
+        dbSnapshot: snapshot,
+        appVersion: APP_VERSION,
+        deviceId: getOrCreateDeviceId(auditStorage()),
+        sessionId: Audit.meta.sessionId
+      });
       downloadJSON(data, 'livenotepad-learning');
-      Audit.log({ type: 'EXPORT', source: 'export', result: 'ok', counts: { evidence: data.word_evidence.length, meta: data.word_meta.length }, mode: 'learning' });
+      Audit.log({ type: 'EXPORT', source: 'export', result: 'ok', counts: { evidence: data.counts.evidence, meta: data.counts.meta }, mode: 'learning' });
       toast('Обучение экспортировано');
     } catch (e) { Audit.error('export', e, { action: 'exportLearning' }); toast('Ошибка: ' + e.message); }
   }
 
   async function exportLogs() {
     try {
-      const logs = await DB.getAllLogs();
-      downloadJSON({ version: 'alpha-v0.3', schemaVersion: 3, exportedAt: new Date().toISOString(), count: logs.length, logs }, 'livenotepad-logs');
-      Audit.log({ type: 'EXPORT', source: 'export', result: 'ok', counts: { logs: logs.length }, mode: 'logs' });
-      toast(`Экспортировано ${logs.length} записей`);
+      const snapshot = await DB.getSnapshot();
+      const data = buildExport({
+        mode: 'logs',
+        dbSnapshot: snapshot,
+        appVersion: APP_VERSION,
+        deviceId: getOrCreateDeviceId(auditStorage()),
+        sessionId: Audit.meta.sessionId
+      });
+      downloadJSON(data, 'livenotepad-logs');
+      Audit.log({ type: 'EXPORT', source: 'export', result: 'ok', counts: { logs: data.counts.logs }, mode: 'logs' });
+      toast(`Экспортировано ${data.counts.logs} записей`);
     } catch (e) { Audit.error('export', e, { action: 'exportLogs' }); toast('Ошибка: ' + e.message); }
   }
 

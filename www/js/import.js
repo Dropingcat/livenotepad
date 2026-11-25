@@ -56,12 +56,12 @@ function deepEqual(a, b) {
 export function validateImport(input) {
   const errors = [];
   const warnings = [];
-  const sections = { notes: [], word_evidence: [], word_meta: [], training_log: [] };
+  const content = { notes: [], word_evidence: [], word_meta: [], training_log: [] };
   const counts = { notes: 0, word_evidence: 0, word_meta: 0, training_log: 0 };
 
   if (!isPlainObject(input)) {
     errors.push('импорт: ожидается JSON-объект, а не ' + (Array.isArray(input) ? 'массив' : typeof input));
-    return { errors, warnings, sections, counts };
+    return { errors, warnings, content, counts };
   }
 
   const source = isPlainObject(input.data) ? input.data : input;
@@ -99,7 +99,7 @@ export function validateImport(input) {
 
   if (!SECTION_NAMES.some(name => present[name])) {
     errors.push('нет известных секций (notes, word_evidence, word_meta, training_log)');
-    return { errors, warnings, sections, counts };
+    return { errors, warnings, content, counts };
   }
 
   for (const name of SECTION_NAMES) {
@@ -107,7 +107,7 @@ export function validateImport(input) {
     if (!Array.isArray(raw[name])) {
       errors.push(`секция ${name}: ожидается массив`);
     } else {
-      sections[name] = raw[name];
+      content[name] = raw[name];
       counts[name] = raw[name].length;
     }
   }
@@ -121,7 +121,7 @@ export function validateImport(input) {
   const unknownSources = new Set();
   const seenNoteIds = new Set();
 
-  sections.notes.forEach((note, index) => {
+  content.notes.forEach((note, index) => {
     if (!isPlainObject(note)) {
       errors.push(`notes[${index}]: ожидается объект`);
       return;
@@ -155,7 +155,7 @@ export function validateImport(input) {
 
   const seenEvidence = new Set();
   const duplicateEvidence = new Set();
-  sections.word_evidence.forEach((row, index) => {
+  content.word_evidence.forEach((row, index) => {
     if (!isPlainObject(row)) {
       errors.push(`word_evidence[${index}]: ожидается объект`);
       return;
@@ -185,7 +185,7 @@ export function validateImport(input) {
 
   const seenStems = new Set();
   const duplicateStems = new Set();
-  sections.word_meta.forEach((row, index) => {
+  content.word_meta.forEach((row, index) => {
     if (!isPlainObject(row)) {
       errors.push(`word_meta[${index}]: ожидается объект`);
       return;
@@ -204,7 +204,7 @@ export function validateImport(input) {
     warnings.push('дубли stem схлопнутся put: ' + [...duplicateStems].join(', '));
   }
 
-  sections.training_log.forEach((entry, index) => {
+  content.training_log.forEach((entry, index) => {
     if (!isPlainObject(entry)) {
       errors.push(`training_log[${index}]: ожидается объект`);
       return;
@@ -223,7 +223,7 @@ export function validateImport(input) {
   for (const branch of unknownBranches) warnings.push('неизвестный branch: ' + branch);
   for (const branchSource of unknownSources) warnings.push('неизвестный branchSource: ' + branchSource);
 
-  return { errors, warnings, sections, counts };
+  return { errors, warnings, content, counts };
 }
 
 /**
