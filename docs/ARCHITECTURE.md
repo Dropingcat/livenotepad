@@ -86,7 +86,7 @@ www/js/audit.js         события аудита, ошибки, выгруз�
 
 ## 6. Тесты и гейты
 
-- `npm test` — `node --test`, чистые модули; сейчас 242 теста (в т.ч. 25 на `gestures`).
+- `npm test` — `node --test`, чистые модули; сейчас 248 тестов (242 M2 + 6 extension).
 - `node --check` модулей.
 - Inline-модуль: извлечение по маркерам `<script type="module">…</script>`, не по номерам строк.
 - **DOM-гейт:** headless Chrome + CDP (`C:\Temp\opencode\app-gate.mjs`), свежий профиль на прогон (герметичность), сценарий в контексте страницы, артефакт с `appHash`, `expressionHash`, `stepCount/passCount`, `consoleErrors`. Для UX-001 — 27 шагов.

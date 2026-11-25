@@ -5,3 +5,7 @@ node_modules/
 .github/workflows/pages.yml
 .DS_Store
 Thumbs.db
+
+extension/js/
+
+extension/generate-icons.cjs

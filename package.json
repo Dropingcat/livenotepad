@@ -5,8 +5,9 @@
   "type": "module",
   "description": "Живой блокнот — alpha",
   "scripts": {
-    "test": "node --test",
+    "test": "node --test test/*.test.js",
     "test:due": "node --test test/due-parser.test.js",
-    "dev": "node scripts/serve.js"
+    "dev": "node scripts/serve.js",
+    "extension": "node extension/build.cjs && echo Open about:debugging Load Temporary Add-on extension/manifest.json"
   }
 }

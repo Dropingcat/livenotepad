@@ -1,6 +1,16 @@
 # Изменения
 
-## 2026-11-23 — M0/M1/M2
+## 2026-11-25 — Extension (Firefox sidebar)
+
+- `extension/manifest.json` — Firefox Manifest V2, `sidebar_action`, уведомления о просрочке.
+- `extension/sidebar.html` — компактный ввод + список + корзина + плавающий лог.
+- `extension/sidebar.js` — уменьшенная копия ядра (`addNote`, `toggleNote`, `deleteNote`, корзина).
+- `extension/background.js` — `alarms` каждые 5 минут → `notifications.create` при просрочке.
+- `extension/build.cjs` — копирует `www/js/*.js` → `extension/js/` (общие модули).
+- Иконки 48/96/128, тесты (+6), `npm test` 248/248.
+- Ветка `extension` залита в `Dropingcat/livenotepad`: `git checkout extension`.
+
+## 2026-11-23-25 — M2-UX-001
 
 ### M0 — фундамент
 - `www/index.html` из `блокнот_0_7.html`.

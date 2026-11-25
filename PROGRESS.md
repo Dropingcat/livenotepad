@@ -37,6 +37,13 @@
 
 > AUD-001 и UX-001 закрыты. Остальные пункты M2 закрываются картами AUD-002a–d, AUD-003, AUD-006 и проверкой VERIFY-007; до этого галочки не ставятся. TD-DEV-18…21 — остаточные UX/гейт-вопросы, не блокируют M2.
 
+## Extension (Firefox sidebar)
+
+- [ ] Ветка `extension` создана и залита: manifest, sidebar, background, сборка.
+- [ ] Установка: `git checkout extension` → `npm run build` (копирует модули) → Firefox `about:debugging` → временное дополнение.
+- [ ] Уведомления о просрочке — background.js (alarms 5 мин).
+- [ ] TODO: установка в Firefox Nightly/Release, ручной тест, Chrome sidePanel.
+
 ## M3 — обучение
 
 - [ ] Биграммы и стоп-лист
