@@ -185,6 +185,14 @@ footer { padding: 8px 20px 14px; font-size: 10px; color: var(--muted); text-alig
 .mon-item .tag.complete { background: rgba(16,185,129,0.15); color: #047857; }
 .mon-item .tag.correct { background: rgba(245,158,11,0.15); color: #b45309; }
 .mon-item .tag.reopen { background: rgba(139,92,246,0.15); color: #6d28d9; }
+.mon-item .tag.delete { background: rgba(201,74,58,0.15); color: #c94a3a; }
+.mon-item .tag.restore { background: rgba(90,90,85,0.15); color: var(--muted); }
+.mon-item .tag.import { background: rgba(59,130,246,0.15); color: #2563eb; }
+.mon-item .tag.export { background: rgba(16,185,129,0.15); color: #047857; }
+.mon-item .tag.error { background: rgba(229,62,62,0.15); color: #dc2626; }
+.mon-item .tag.reset { background: rgba(139,92,246,0.15); color: #6d28d9; }
+.mon-item .tag.backup { background: rgba(251,191,36,0.2); color: #b45309; }
+.mon-item .tag.default { background: rgba(156,163,175,0.2); color: var(--muted); }
 .mon-empty { padding: 30px 20px; text-align: center; color: var(--muted); font-size: 13px; }
 .mon-filter { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
 .mon-filter-btn { padding: 4px 10px; border-radius: 12px; border: 1px solid var(--line); background: none; color: var(--muted); font-size: 11px; cursor: pointer; font-family: inherit; }
@@ -192,6 +200,12 @@ footer { padding: 8px 20px 14px; font-size: 10px; color: var(--muted); text-alig
 .mon-search { width: 100%; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font-size: 12px; font-family: monospace; margin-bottom: 10px; outline: none; }
 .mon-search:focus { border-color: var(--accent); }
 .audit-json { width: 100%; min-height: 180px; margin-top: 6px; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font-family: monospace; font-size: 11px; line-height: 1.4; resize: vertical; }
+.mon-backup-item { background: rgba(128,128,128,0.05); border-radius: 6px; padding: 8px 10px; margin-bottom: 6px; font-size: 12px; border-left: 3px solid var(--accent); }
+.mon-backup-meta { font-family: monospace; line-height: 1.5; word-break: break-word; }
+.mon-backup-meta .k { color: var(--muted); }
+.mon-backup-meta .v { color: var(--ink); }
+.mon-backup-actions { display: flex; gap: 6px; margin-top: 6px; }
+.mon-backup-actions .monitor-btn { font-size: 11px; padding: 4px 10px; }
 </style>
 </head>
 <body>
@@ -237,6 +251,7 @@ footer { padding: 8px 20px 14px; font-size: 10px; color: var(--muted); text-alig
       <button class="monitor-tab" data-tab="notes">Заметки</button>
       <button class="monitor-tab" data-tab="learning">Обучение</button>
       <button class="monitor-tab" data-tab="logs">Логи</button>
+      <button class="monitor-tab" data-tab="backups">Копии</button>
     </div>
     <div class="monitor-body" id="monitorBody"></div>
     <div class="monitor-footer" id="monitorFooter"></div>
@@ -255,12 +270,15 @@ import { nextMidnight, startOfDay } from './js/time.js';
 import { applyTextEdit } from './js/note-edit.js';
 import { GESTURE, resolveTouchAction, resolveMouseAction, placeMenu } from './js/gestures.js';
 import { isDuplicateAdd } from './js/dedup.js';
+import { createSerialQueue } from './js/add-queue.js';
 import { validateImport, planImport } from './js/import.js';
+import { buildExport, validateExport, computeFileHash } from './js/export-format.js';
 import { promTx, applyMergePlan, readSnapshot } from './js/idb.js';
 import {
   makeEvent, errorEvent, createSessionId, getOrCreateDeviceId,
   truncateText, buildAuditExport, createFallbackQueue, flushAuditQueue, readAuditLogs, DEFAULT_FALLBACK_KEY
 } from './js/audit.js';
+import { makeEvent as makeActionEvent, typeFilterTypes, typeTagClass } from './js/action-log.js';
 
 const APP_VERSION = 'alpha v0.3';
 
@@ -269,7 +287,7 @@ const DB = (() => {
   return {
     async init() {
       return new Promise((resolve, reject) => {
-        const req = indexedDB.open('livenotepad', 1);
+        const req = indexedDB.open('livenotepad', 2);
         req.onupgradeneeded = e => {
           const d = e.target.result;
           if (!d.objectStoreNames.contains('notes')) {
@@ -280,6 +298,9 @@ const DB = (() => {
           if (!d.objectStoreNames.contains('word_evidence')) d.createObjectStore('word_evidence', { keyPath: ['stem', 'branch'] });
           if (!d.objectStoreNames.contains('word_meta')) d.createObjectStore('word_meta', { keyPath: 'stem' });
           if (!d.objectStoreNames.contains('training_log')) d.createObjectStore('training_log', { keyPath: 'id', autoIncrement: true });
+          if (!d.objectStoreNames.contains('backup')) {
+            d.createObjectStore('backup', { keyPath: 'id', autoIncrement: true });
+          }
         };
         req.onsuccess = e => { db = e.target.result; resolve(db); };
         req.onerror = e => reject(e.target.error);
@@ -317,8 +338,79 @@ const DB = (() => {
       const tx = db.transaction(['notes', 'word_evidence', 'word_meta', 'training_log'], 'readwrite');
       const countReq = applyMergePlan(tx, plan);
       return promTx(tx, countReq);
+    },
+    async createBackup(reason) {
+      if (!db) throw new Error('DB not initialized');
+      const snapshot = await this.getSnapshot();
+      const backup = {
+        exportedAt: Date.now(),
+        reason: reason || 'manual',
+        notes: snapshot.notes,
+        word_evidence: snapshot.evidence,
+        word_meta: snapshot.meta,
+        training_log: snapshot.logs
+      };
+      const tx = db.transaction('backup', 'readwrite');
+      const req = tx.objectStore('backup').add(backup);
+      return promTx(tx, req);
+    },
+    async listBackups() {
+      if (!db) throw new Error('DB not initialized');
+      const tx = db.transaction('backup', 'readonly');
+      const req = tx.objectStore('backup').getAll();
+      const backups = await promTx(tx, req);
+      return backups.sort((a, b) => b.exportedAt - a.exportedAt);
+    },
+    async restoreBackup(backupId) {
+      if (!db) throw new Error('DB not initialized');
+      const tx = db.transaction('backup', 'readonly');
+      const backup = await promTx(tx, tx.objectStore('backup').get(backupId));
+      if (!backup) throw new Error('Бэкап не найден');
+      const rwTx = db.transaction(['notes', 'word_evidence', 'word_meta', 'training_log'], 'readwrite');
+      rwTx.objectStore('notes').clear();
+      rwTx.objectStore('word_evidence').clear();
+      rwTx.objectStore('word_meta').clear();
+      rwTx.objectStore('training_log').clear();
+      for (const note of (backup.notes || [])) rwTx.objectStore('notes').put(note);
+      for (const row of (backup.word_evidence || [])) rwTx.objectStore('word_evidence').put(row);
+      for (const row of (backup.word_meta || [])) rwTx.objectStore('word_meta').put(row);
+      for (const entry of (backup.training_log || [])) {
+        if (Number.isInteger(entry.id) && entry.id >= 0) {
+          rwTx.objectStore('training_log').put(entry);
+        } else {
+          const { id, ...rest } = entry;
+          rwTx.objectStore('training_log').add(rest);
+        }
+      }
+      return promTx(rwTx, rwTx.objectStore('notes').count());
+    },
+    async deleteBackup(backupId) {
+      if (!db) throw new Error('DB not initialized');
+      const tx = db.transaction('backup', 'readwrite');
+      const req = tx.objectStore('backup').delete(backupId);
+      return promTx(tx, req);
+    },
+    async replaceAll(data) {
+      if (!db) throw new Error('DB not initialized');
+      const tx = db.transaction(['notes', 'word_evidence', 'word_meta', 'training_log'], 'readwrite');
+      tx.objectStore('notes').clear();
+      tx.objectStore('word_evidence').clear();
+      tx.objectStore('word_meta').clear();
+      tx.objectStore('training_log').clear();
+      for (const note of (data.notes || [])) tx.objectStore('notes').put(note);
+      for (const row of (data.word_evidence || [])) tx.objectStore('word_evidence').put(row);
+      for (const row of (data.word_meta || [])) tx.objectStore('word_meta').put(row);
+      for (const entry of (data.training_log || [])) {
+        if (Number.isInteger(entry.id) && entry.id >= 0) {
+          tx.objectStore('training_log').put(entry);
+        } else {
+          const { id, ...rest } = entry;
+          tx.objectStore('training_log').add(rest);
+        }
+      }
+      return promTx(tx, tx.objectStore('notes').count());
     }
-  };
+  }
 })();
 
 // ── Аудит действий и ошибок ────────────────────────────────────────────────
@@ -570,6 +662,7 @@ function collectContext() {
 }
 
 const state = { notes: [], diagMode: false, pendingDelete: null, girlTimer: null, diagTapCount: 0, lastAdd: null, adding: false, trashExpanded: false };
+const addQueue = createSerialQueue();
 
 function liveSheet() { return filterLiveSheet(state.notes, Date.now()); }
 
@@ -1111,17 +1204,27 @@ draft.addEventListener('input', () => {
     } catch (e) { console.error('input hint error:', e); Audit.error('note', e, { action: 'inputHint' }); }
   }, 200);
 });
-draft.addEventListener('keydown', async e => {
+draft.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
     const text = draft.value.trim();
     if (text) {
-      try {
-        await addNote(text);
-        draft.value = '';
-        draft.style.height = 'auto';
-        hint.innerHTML = '';
-      } catch (err) { console.error('addNote error:', err); Audit.error('note', err, { action: 'addNote' }); toast('Ошибка: ' + err.message); }
+      draft.value = '';
+      draft.style.height = 'auto';
+      hint.innerHTML = '';
+      addQueue.enqueue(async () => {
+        try {
+          await addNote(text);
+        } catch (err) {
+          console.error('addNote error:', err);
+          Audit.error('note', err, { action: 'addNote' });
+          toast('Ошибка: ' + (err && (err.message || err.name)) || String(err));
+          if (!draft.value.trim()) {
+            draft.value = text;
+            draft.style.height = 'auto';
+          }
+        }
+      });
     }
   }
 });
@@ -1191,6 +1294,7 @@ const Monitor = (() => {
       else if (currentTab === 'notes') await renderNotes(body, footer);
       else if (currentTab === 'learning') await renderLearning(body, footer);
       else if (currentTab === 'logs') await renderLogs(body, footer);
+      else if (currentTab === 'backups') await renderBackups(body, footer);
     } catch (e) {
       console.error('Monitor render error:', e);
       Audit.error('render', e, { action: 'monitorRenderTab', tab: currentTab });
@@ -1355,7 +1459,7 @@ const Monitor = (() => {
     const logs = await DB.getAllLogs();
     const sorted = [...logs].sort((a,b) => b.ts - a.ts);
 
-    const types = ['ALL', 'CREATE', 'COMPLETE', 'REOPEN', 'CORRECT'];
+    const types = typeFilterTypes();
     let filtered = logFilter === 'ALL' ? sorted : sorted.filter(l => l.type === logFilter);
     if (logSearch) {
       const q = logSearch.toLowerCase();
@@ -1375,7 +1479,7 @@ const Monitor = (() => {
       </div>
       <div class="mon-section-title">События (${filtered.length}${filtered.length !== sorted.length ? ` из ${sorted.length}` : ''})</div>
       ${filtered.length === 0 ? '<div class="mon-empty">Нет записей</div>' : filtered.slice(0, 200).map(l => {
-        const tagClass = l.type === 'CREATE' ? 'create' : l.type === 'COMPLETE' ? 'complete' : l.type === 'CORRECT' ? 'correct' : 'reopen';
+        const tagClass = typeTagClass(l.type);
         const time = new Date(l.ts).toLocaleString('ru-RU');
         let details = '';
         if (l.type === 'CREATE') details = `<span class="k">текст:</span> <span class="v">${escapeHtml(l.text || '?')}</span> · <span class="k">ветка:</span> <span class="v">${l.branch || '?'}</span>`;
@@ -1467,7 +1571,164 @@ const Monitor = (() => {
     document.getElementById('monRefresh').onclick = () => renderTab();
   }
 
-  function downloadJSON(data, filename) {
+  const renderBackups = async (body, footer) => {
+    const backups = await DB.listBackups();
+
+    body.innerHTML = `
+      <div class="mon-section-title">Резервные копии (${backups.length})</div>
+      ${backups.length === 0 ? '<div class="mon-empty">Нет резервных копий</div>' : backups.map(b => {
+        const date = new Date(b.exportedAt).toLocaleString('ru-RU');
+        const noteCount = (b.notes || []).length;
+        return `<div class="mon-backup-item">
+          <div class="mon-backup-meta">
+            <span class="k">Дата:</span> <span class="v">${escapeHtml(date)}</span> ·
+            <span class="k">Причина:</span> <span class="v">${escapeHtml(b.reason || 'manual')}</span> ·
+            <span class="k">Заметок:</span> <span class="v">${noteCount}</span>
+          </div>
+          <div class="mon-backup-actions">
+            <button class="monitor-btn primary" data-restore-id="${escapeHtml(String(b.id))}">Восстановить</button>
+            <button class="monitor-btn danger" data-delete-id="${escapeHtml(String(b.id))}">Удалить</button>
+          </div>
+        </div>`;
+      }).join('')}
+    `;
+
+    footer.innerHTML = `
+      <button class="monitor-btn primary" id="monCreateBackup">📦 Создать копию</button>
+      <button class="monitor-btn danger" id="monReplaceAll">⚠ Заменить всё</button>
+      <button class="monitor-btn danger" id="monResetAll">🔄 Сбросить всё</button>
+      <button class="monitor-btn" id="monRefresh">🔄 Обновить</button>
+    `;
+
+    document.getElementById('monCreateBackup').onclick = async () => {
+      try {
+        const backupId = await DB.createBackup('manual');
+        Audit.log({ type: 'BACKUP', source: 'ui', result: 'ok', backupId, reason: 'manual' });
+        toast('Резервная копия создана');
+        renderTab();
+      } catch (err) { Audit.error('db', err, { action: 'createBackup' }); toast('Ошибка: ' + err.message); }
+    };
+
+    document.getElementById('monReplaceAll').onclick = async () => {
+      if (!confirm('Вы уверены? Все текущие данные будут заменены. Резервная копия будет создана автоматически.')) return;
+      if (!confirm('Это действие необратимо. Продолжить?')) return;
+      try {
+        const backupId = await DB.createBackup('replace-all');
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          let data, fileBytes;
+          try {
+            fileBytes = new Uint8Array(await file.arrayBuffer());
+            const text = new TextDecoder().decode(fileBytes);
+            data = JSON.parse(text);
+          } catch (err) {
+            Audit.error('import', err, { action: 'replaceAllParse' });
+            toast('Ошибка разбора файла: ' + (err.message || String(err)));
+            return;
+          }
+          // Валидация с помощью import-модуля
+          const { validateImport, validateExport } = await import('./js/import.js');
+          let importContent, importCounts;
+          const manifestValidation = validateExport(data);
+          if (manifestValidation.errors.length > 0) {
+            const val = validateImport(data);
+            if (val.errors.length > 0) {
+              toast('Импорт отклонён: ' + val.errors[0]);
+              return;
+            }
+            importContent = val.content;
+            importCounts = val.counts;
+          } else {
+            importContent = manifestValidation.content;
+            importCounts = manifestValidation.counts;
+          }
+          if (!importContent) {
+            toast('Нет данных для импорта');
+            return;
+          }
+          const plan = {
+            notes: importContent.notes || [],
+            word_evidence: importContent.word_evidence || [],
+            word_meta: importContent.word_meta || [],
+            training_log: importContent.training_log || []
+          };
+          try {
+            await DB.replaceAll(plan);
+            Audit.log({ ts: Date.now(), type: 'IMPORT', mode: 'replace', source: 'ui', result: 'ok', backupId, details: { message: 'replace-all import' } });
+            await loadNotes();
+            await render();
+            renderTab();
+            toast('Данные заменены');
+          } catch (err) {
+            Audit.error('db', err, { action: 'replaceAllApply' });
+            toast('Ошибка замены: ' + err.message);
+          }
+        };
+        input.click();
+      } catch (err) { Audit.error('db', err, { action: 'replaceAllBackup' }); toast('Ошибка: ' + err.message); }
+    };
+
+    document.getElementById('monResetAll').onclick = async () => {
+      if (!confirm('Сбросить все данные к начальному состоянию? Все заметки, обучение и логи будут удалены.')) return;
+      const confirmWord = prompt('Введите слово "СБРОС" для подтверждения:');
+      if (confirmWord !== 'СБРОС') {
+        toast('Сброс отменён');
+        return;
+      }
+      try {
+        const backupId = await DB.createBackup('reset');
+        await DB.clearAll();
+        state.notes = [];
+        const seeds = ['позвонить маме до 20', 'купить молоко', 'дочитать отчёт завтра в 11', 'записаться к зубу в пятницу', 'подкачай шины'];
+        for (const text of seeds) {
+          try { await addNote(text); }
+          catch (e) { console.error('seed note error:', e); Audit.error('note', e, { action: 'resetSeed' }); }
+        }
+        Audit.log({ ts: Date.now(), type: 'RESET', source: 'ui', result: 'ok', backupId });
+        toast('Сброс выполнен');
+        renderTab();
+      } catch (err) {
+        Audit.error('db', err, { action: 'resetToDefault' });
+        toast('Ошибка сброса: ' + err.message);
+      }
+    };
+
+    // Восстановление бэкапа
+    body.querySelectorAll('[data-restore-id]').forEach(btn => {
+      btn.onclick = async () => {
+        const id = Number(btn.dataset.restoreId);
+        if (!confirm('Восстановить данные из этой резервной копии? Текущие данные будут заменены.')) return;
+        if (!confirm('Это действие необратимо. Продолжить?')) return;
+        try {
+          await DB.restoreBackup(id);
+          Audit.log({ ts: Date.now(), type: 'RESTORE_BACKUP', source: 'ui', result: 'ok', backupId: id });
+          await loadNotes();
+          await render();
+          toast('Бэкап восстановлен');
+          renderTab();
+        } catch (err) { Audit.error('db', err, { action: 'restoreBackup' }); toast('Ошибка: ' + err.message); }
+      };
+    });
+
+    // Удаление бэкапа
+    body.querySelectorAll('[data-delete-id]').forEach(btn => {
+      btn.onclick = async () => {
+        const id = Number(btn.dataset.deleteId);
+        if (!confirm('Удалить эту резервную копию?')) return;
+        try {
+          await DB.deleteBackup(id);
+          Audit.log({ ts: Date.now(), type: 'DELETE_BACKUP', source: 'ui', result: 'ok', backupId: id });
+          toast('Бэкап удалён');
+          renderTab();
+        } catch (err) { Audit.error('db', err, { action: 'deleteBackup' }); toast('Ошибка: ' + err.message); }
+      };
+    });
+  }
+  const downloadJSON = (data, filename) => {
     const json = JSON.stringify(data, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -1478,13 +1739,10 @@ const Monitor = (() => {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    // R-6: не отзываем URL синхронно — на мобильных (iOS Safari/Android WebView)
-    // это может отменить старт загрузки.
     setTimeout(() => { try { URL.revokeObjectURL(url); } catch (e) { /* ignore */ } }, 1000);
   }
 
-  // Fallback для Safari/телефона: показать JSON в textarea без тяжёлого CSS.
-  function showAuditTextarea(json) {
+  const showAuditTextarea = (json) => {
     let wrap = document.getElementById('auditJsonBox');
     if (!wrap) {
       wrap = document.createElement('div');
@@ -1501,25 +1759,23 @@ const Monitor = (() => {
     }
   }
 
-  async function exportAll() {
+  const exportAll = async () => {
     try {
-      const data = {
-        version: 'alpha-v0.3',
-        schemaVersion: 3,
-        exportedAt: new Date().toISOString(),
-        tuning: TUNING,
-        notes: await DB.getAllNotes(),
-        word_evidence: await DB.getAllEvidence(),
-        word_meta: await DB.getAllMeta(),
-        training_log: await DB.getAllLogs()
-      };
+      const snapshot = await DB.getSnapshot();
+      const data = buildExport({
+        mode: 'full',
+        dbSnapshot: snapshot,
+        appVersion: APP_VERSION,
+        deviceId: getOrCreateDeviceId(auditStorage()),
+        sessionId: Audit.meta.sessionId
+      });
       downloadJSON(data, 'livenotepad-full');
-      Audit.log({ type: 'EXPORT', source: 'export', result: 'ok', counts: { notes: data.notes.length, evidence: data.word_evidence.length, meta: data.word_meta.length, logs: data.training_log.length }, mode: 'all' });
+      Audit.log({ type: 'EXPORT', source: 'export', result: 'ok', counts: { notes: data.counts.notes, evidence: data.counts.evidence, meta: data.counts.meta, logs: data.counts.logs }, mode: 'all' });
       toast('Полный экспорт сохранён');
     } catch (e) { Audit.error('export', e, { action: 'exportAll' }); toast('Ошибка: ' + e.message); }
   }
 
-  async function importAll() {
+  const importAll = async () => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json';
@@ -1529,8 +1785,10 @@ const Monitor = (() => {
       const safeError = err => (err && (err.message || err.name)) || String(err);
 
       let data;
+      let fileBytes;
       try {
-        const text = await file.text();
+        fileBytes = new Uint8Array(await file.arrayBuffer());
+        const text = new TextDecoder().decode(fileBytes);
         data = JSON.parse(text);
       } catch (err) {
         Audit.error('import', err, { action: 'importParse' });
@@ -1538,15 +1796,50 @@ const Monitor = (() => {
         return;
       }
 
-      const validation = validateImport(data);
-      if (validation.errors.length > 0) {
-        Audit.log({ type: 'IMPORT', source: 'ui', result: 'error', mode: 'merge', details: { message: validation.errors[0], errors: validation.errors.slice(0, 10) } });
-        toast('Импорт отклонён: ' + validation.errors[0]);
-        return;
+      // Валидация манифеста (формат 4)
+      let importContent;
+      let importCounts;
+      const manifestValidation = validateExport(data);
+      if (manifestValidation.errors.length > 0) {
+        // Если манифест не прошёл — пробуем старый validateImport
+        const val = validateImport(data);
+        if (val.errors.length > 0) {
+          Audit.log({ type: 'IMPORT', source: 'ui', result: 'error', mode: 'merge', details: { message: val.errors[0], errors: val.errors.slice(0, 10) } });
+          toast('Импорт отклонён: ' + val.errors[0]);
+          return;
+        }
+        importContent = val.content;
+        importCounts = val.counts;
+        // checksum для легаси-файлов не проверяем
+      } else {
+        importContent = manifestValidation.content;
+        importCounts = manifestValidation.counts;
+
+        // Проверка checksum
+        const exportId = data.exportId;
+        if (data.checksum !== undefined && manifestValidation.warnings.some(w => w.includes('checksum') && w.includes('не совпадает'))) {
+          if (!confirm('Предупреждение: checksum файла не совпадает. Данные могли быть повреждены.\n\nИмпортировать без проверки (только объединить)?')) return;
+        }
+        if (data.checksum === undefined && manifestValidation.warnings.some(w => w.includes('checksum') && w.includes('отсутствует'))) {
+          if (!confirm('Файл не содержит checksum (целостность не подтверждена).\n\nПродолжить импорт?')) return;
+        }
       }
-      if (validation.warnings.length > 0) {
-        if (!confirm('Предупреждения импорта:\n' + validation.warnings.join('\n') + '\n\nПродолжить?')) return;
+
+      // Объединяем warnings из обоих валидаторов
+      let allWarnings = manifestValidation.errors.length === 0 ? manifestValidation.warnings : [];
+      if (manifestValidation.errors.length > 0) {
+        const val = validateImport(data);
+        allWarnings = val.warnings;
       }
+      if (allWarnings.length > 0) {
+        if (!confirm('Предупреждения импорта:\n' + allWarnings.join('\n') + '\n\nПродолжить?')) return;
+      }
+
+      // Вычисляем fileHash для IMPORT события
+      let fileHash = null;
+      try {
+        fileHash = computeFileHash(fileBytes, data.exportId || 'unknown');
+      } catch (_) {}
 
       const logImportError = err => {
         Audit.error('import', err, { action: 'importMerge' });
@@ -1556,7 +1849,7 @@ const Monitor = (() => {
           mode: 'merge',
           source: 'ui',
           result: 'error',
-          details: { message: safeError(err) }
+          details: { message: safeError(err), fileHash }
         });
       };
 
@@ -1571,10 +1864,10 @@ const Monitor = (() => {
             logs: snapshot.logs
           },
           {
-            notes: validation.sections.notes,
-            evidence: validation.sections.word_evidence,
-            meta: validation.sections.word_meta,
-            logs: validation.sections.training_log
+            notes: importContent.notes,
+            evidence: importContent.word_evidence,
+            meta: importContent.word_meta,
+            logs: importContent.training_log
           }
         );
         const summary = `Слияние без удаления:\n`
@@ -1589,7 +1882,7 @@ const Monitor = (() => {
         return;
       }
 
-      plan.logs.push(Audit.event({ ts: Date.now(), type: 'IMPORT', mode: 'merge', source: 'ui', result: 'ok', counts: plan.stats }));
+      plan.logs.push(Audit.event({ ts: Date.now(), type: 'IMPORT', mode: 'merge', source: 'ui', result: 'ok', counts: plan.stats, fileHash, exportId: data.exportId || undefined }));
       try {
         await DB.mergeAll(plan);
       } catch (err) {
@@ -1613,9 +1906,15 @@ const Monitor = (() => {
     input.click();
   }
 
-  async function resetToDefault() {
+  const resetToDefault = async () => {
     if (!confirm('Сбросить все данные к начальному состоянию? Все заметки, обучение и логи будут удалены.')) return;
+    const confirmWord = prompt('Введите слово "СБРОС" для подтверждения:');
+    if (confirmWord !== 'СБРОС') {
+      toast('Сброс отменён');
+      return;
+    }
     try {
+      const backupId = await DB.createBackup('reset');
       await DB.clearAll();
       state.notes = [];
       
@@ -1626,6 +1925,7 @@ const Monitor = (() => {
         catch (e) { console.error('seed note error:', e); Audit.error('note', e, { action: 'resetSeed' }); }
       }
       
+      Audit.log({ ts: Date.now(), type: 'RESET', source: 'ui', result: 'ok', backupId });
       toast('Сброс выполнен');
       renderTab();
     } catch (err) {
@@ -1634,36 +1934,51 @@ const Monitor = (() => {
     }
   }
 
-  async function exportNotes() {
+  const exportNotes = async () => {
     try {
-      const notes = await DB.getAllNotes();
-      downloadJSON({ version: 'alpha-v0.3', schemaVersion: 3, exportedAt: new Date().toISOString(), count: notes.length, notes }, 'livenotepad-notes');
-      Audit.log({ type: 'EXPORT', source: 'export', result: 'ok', counts: { notes: notes.length }, mode: 'notes' });
-      toast(`Экспортировано ${notes.length} заметок`);
+      const snapshot = await DB.getSnapshot();
+      const data = buildExport({
+        mode: 'notes',
+        dbSnapshot: snapshot,
+        appVersion: APP_VERSION,
+        deviceId: getOrCreateDeviceId(auditStorage()),
+        sessionId: Audit.meta.sessionId
+      });
+      downloadJSON(data, 'livenotepad-notes');
+      Audit.log({ type: 'EXPORT', source: 'export', result: 'ok', counts: { notes: data.counts.notes }, mode: 'notes' });
+      toast(`Экспортировано ${data.counts.notes} заметок`);
     } catch (e) { Audit.error('export', e, { action: 'exportNotes' }); toast('Ошибка: ' + e.message); }
   }
 
-  async function exportLearning() {
+  const exportLearning = async () => {
     try {
-      const data = {
-        version: 'alpha-v0.3',
-        schemaVersion: 3,
-        exportedAt: new Date().toISOString(),
-        word_evidence: await DB.getAllEvidence(),
-        word_meta: await DB.getAllMeta()
-      };
+      const snapshot = await DB.getSnapshot();
+      const data = buildExport({
+        mode: 'learning',
+        dbSnapshot: snapshot,
+        appVersion: APP_VERSION,
+        deviceId: getOrCreateDeviceId(auditStorage()),
+        sessionId: Audit.meta.sessionId
+      });
       downloadJSON(data, 'livenotepad-learning');
-      Audit.log({ type: 'EXPORT', source: 'export', result: 'ok', counts: { evidence: data.word_evidence.length, meta: data.word_meta.length }, mode: 'learning' });
+      Audit.log({ type: 'EXPORT', source: 'export', result: 'ok', counts: { evidence: data.counts.evidence, meta: data.counts.meta }, mode: 'learning' });
       toast('Обучение экспортировано');
     } catch (e) { Audit.error('export', e, { action: 'exportLearning' }); toast('Ошибка: ' + e.message); }
   }
 
-  async function exportLogs() {
+  const exportLogs = async () => {
     try {
-      const logs = await DB.getAllLogs();
-      downloadJSON({ version: 'alpha-v0.3', schemaVersion: 3, exportedAt: new Date().toISOString(), count: logs.length, logs }, 'livenotepad-logs');
-      Audit.log({ type: 'EXPORT', source: 'export', result: 'ok', counts: { logs: logs.length }, mode: 'logs' });
-      toast(`Экспортировано ${logs.length} записей`);
+      const snapshot = await DB.getSnapshot();
+      const data = buildExport({
+        mode: 'logs',
+        dbSnapshot: snapshot,
+        appVersion: APP_VERSION,
+        deviceId: getOrCreateDeviceId(auditStorage()),
+        sessionId: Audit.meta.sessionId
+      });
+      downloadJSON(data, 'livenotepad-logs');
+      Audit.log({ type: 'EXPORT', source: 'export', result: 'ok', counts: { logs: data.counts.logs }, mode: 'logs' });
+      toast(`Экспортировано ${data.counts.logs} записей`);
     } catch (e) { Audit.error('export', e, { action: 'exportLogs' }); toast('Ошибка: ' + e.message); }
   }
 
