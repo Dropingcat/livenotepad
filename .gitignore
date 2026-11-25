@@ -9,3 +9,5 @@ Thumbs.db
 extension/js/
 
 extension/generate-icons.cjs
+
+extension/manifest.json

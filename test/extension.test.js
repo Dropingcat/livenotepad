@@ -40,13 +40,23 @@ test('background.js has alarm + notification + DB logic', () => {
   assert.match(bg, /indexedDB\.open/, 'no indexedDB');
 });
 
-test('icons exist at expected sizes', () => {
-  const sizes = { 'icon-48.png': 48, 'icon-96.png': 96, 'icon-128.png': 128 };
-  for (const [f, s] of Object.entries(sizes)) {
-    const buf = fs.readFileSync(path.join('extension', 'icons', f));
-    const w = buf.readUInt32BE(16); // PNG IHDR width at byte 16
-    assert.equal(w, s, `${f} width ${w} !== ${s}`);
-  }
+test('chrome manifest.json has required fields for Chrome sidePanel', () => {
+  const m = JSON.parse(fs.readFileSync('extension/manifest.chrome.json', 'utf8'));
+  assert.equal(m.manifest_version, 3, 'Chrome manifest must be v3');
+  assert.ok(m.side_panel, 'missing side_panel');
+  assert.ok(m.side_panel.default_path.endsWith('sidebar.html'), 'side_panel path mismatch');
+  assert.ok(m.background.service_worker, 'missing background service_worker');
+  assert.ok(m.background.type === 'module', 'background type must be module');
+  assert.ok(m.permissions.includes('sidePanel'), 'missing sidePanel permission');
+  assert.ok(m.permissions.includes('notifications'), 'missing notifications');
+  assert.ok(m.permissions.includes('alarms'), 'missing alarms');
+});
+
+test('background-sw.js exists and has alarm + notification logic', () => {
+  const bg = fs.readFileSync('extension/background-sw.js', 'utf8');
+  assert.match(bg, /alarms\.create/, 'no alarm.create');
+  assert.match(bg, /notifications\.create/, 'no notification.create');
+  assert.match(bg, /indexedDB\.open/, 'no indexedDB');
 });
 
 test('sidebar.js can be parsed by Node (syntax check)', async () => {
@@ -61,4 +71,13 @@ test('sidebar.js can be parsed by Node (syntax check)', async () => {
   assert.match(src, /placeMenu/, 'missing placeMenu');
   assert.match(src, /filterLiveSheet/, 'missing filterLiveSheet');
   assert.match(src, /filterDeletedToday/, 'missing filterDeletedToday');
+});
+
+test('icons exist at expected sizes', () => {
+  const sizes = { 'icon-48.png': 48, 'icon-96.png': 96, 'icon-128.png': 128 };
+  for (const [f, s] of Object.entries(sizes)) {
+    const buf = fs.readFileSync(path.join('extension', 'icons', f));
+    const w = buf.readUInt32BE(16);
+    assert.equal(w, s, `${f} width ${w} !== ${s}`);
+  }
 });
