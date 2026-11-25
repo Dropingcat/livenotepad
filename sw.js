@@ -25,6 +25,7 @@ const ASSETS = [
   './js/idb.js',
   './js/audit.js',
   './js/action-log.js',
+  './js/backup.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/maskable-512.png',
