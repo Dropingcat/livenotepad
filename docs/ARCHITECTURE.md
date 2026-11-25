@@ -133,3 +133,28 @@ www/js/audit.js         события аудита, ошибки, выгруз�
 - `renderLogs` без typeof-гардов на числовые поля — TD-DEV-4.
 - LAN HTTP (`192.168.1.100:8080`) — не secure context: нет `crypto.subtle`/`randomUUID`; нужен JS-fallback SHA-256 (002b) или HTTPS (Pages/M6).
 - Старые сборки до AUD-002a на файле формата 4 стирают базу (F-1); откат — только снапшот/бэкап.
+
+## 10. Контекст (M4-001)
+
+При добавлении заметки формируется контекстный срез (`collectContext`), который сохраняется в `note.context` и передаётся в `classify()`.
+
+**Поля `collectContext(text)`:**
+
+| Поле | Источник | Назначение |
+|---|---|---|
+| `ts` | `Date.now()` | временная метка |
+| `hour` | `d.getHours()` | час для time-based fallback |
+| `dayOfWeek` | `d.getDay()` | день недели |
+| `isWeekend` | `dow === 0 \|\| dow === 6` | выходной ли |
+| `bootMs` | `performance.now()` | мс с загрузки страницы |
+| `isOnline` | `navigator.onLine` | онлайн-статус |
+| `wordCount` | длина `trim().split(/\\s+/)` | число слов в тексте |
+| `isBoot` | `bootMs < MIN_BOOT_MS_FOR_FALLBACK` | ранняя загрузка |
+| `activeBranches` | топ веток среди открытых заметок сегодня | популярные ветки |
+| `recentBranches` | ветки последних 5 созданных сегодня заметок | свежие ветки |
+
+**Boot guard:** Если `ctx.bootMs < TUNING.MIN_BOOT_MS_FOR_FALLBACK` (300 с), time-based fallback не срабатывает — сразу возвращается `source: 'NONE'`.
+
+**Fallback-порог (M4-001):** После прохода всех классификаторов (SEED, learned) на последней стадии (`TIME_FALLBACK` / `NONE`) применяется `fallbackGuard()` из `classifier.js`:
+- `wordCount >= 4` → `NONE` (не угадываем ветку для длинного текста)
+- `wordCount < 4` → разрешаем `TIME_FALLBACK` (короткие / однословные задачи)

@@ -261,7 +261,7 @@ footer { padding: 8px 20px 14px; font-size: 10px; color: var(--muted); text-alig
 <script type="module">
 import { TUNING, BRANCHES, BRANCH_KEYS } from './js/constants.js';
 import { Tokenizer } from './js/stemmer.js';
-import { SeedsClassifier } from './js/classifier.js';
+import { SeedsClassifier, fallbackGuard } from './js/classifier.js';
 import { DueParser } from './js/due-parser.js';
 import { DueState, DueStateCalculator, isOverdue } from './js/due-state.js';
 import { filterLiveSheet, filterDeletedToday } from './js/live-sheet.js';
@@ -588,14 +588,14 @@ async function classify(text, ctx) {
   if (seedResult) return { ...seedResult, source: 'SEED' };
   const provisional = learnedHits.filter(h => h.confidence >= TUNING.LEARNED_MIN_CONFIDENCE).sort((a,b) => b.confidence - a.confidence)[0];
   if (provisional) return { branch: provisional.branch, source: 'LEARNED_PROVISIONAL', confidence: provisional.confidence, matched: provisional.stem };
-  if (ctx.bootMs < TUNING.MIN_BOOT_MS_FOR_FALLBACK) return { branch: '', source: 'NONE', confidence: 0, matched: '' };
+  if (ctx.bootMs < TUNING.MIN_BOOT_MS_FOR_FALLBACK) return fallbackGuard({ branch: '', source: 'NONE', confidence: 0, matched: '' }, ctx.wordCount);
   const h = ctx.hour, weekend = ctx.isWeekend;
   let fb = null;
   if (!weekend && h >= 9 && h <= 17) fb = { branch: 'rabota', confidence: 0.35 };
   else if (!weekend && h >= 18 && h <= 22) fb = { branch: 'byt', confidence: 0.30 };
   else if (weekend) fb = { branch: 'byt', confidence: 0.25 };
-  if (fb) return { branch: fb.branch, source: 'TIME_FALLBACK', confidence: fb.confidence, matched: '' };
-  return { branch: '', source: 'NONE', confidence: 0, matched: '' };
+  if (fb) return fallbackGuard({ branch: fb.branch, source: 'TIME_FALLBACK', confidence: fb.confidence, matched: '' }, ctx.wordCount);
+  return fallbackGuard({ branch: '', source: 'NONE', confidence: 0, matched: '' }, ctx.wordCount);
 }
 
 const Corrections = (() => {
@@ -652,15 +652,38 @@ function updatePendingUI() {
   }
 }
 
-function collectContext() {
+function collectContext(text) {
   const now = Date.now();
   const d = new Date(now);
   const dow = d.getDay();
+  const words = text ? text.trim().split(/\s+/).filter(w => w.length > 0) : [];
+  const wordCount = words.length;
+  const todayStart = startOfDay(now);
+  // activeBranches: branches most used today among open notes, sorted desc
+  const todayOpen = state.notes.filter(n => n.createdAt >= todayStart && n.completedAt === null);
+  const branchCounts = {};
+  for (const n of todayOpen) {
+    if (n.branch) branchCounts[n.branch] = (branchCounts[n.branch] || 0) + 1;
+  }
+  const activeBranches = Object.entries(branchCounts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([branch]) => branch);
+  // recentBranches: branches of the last 5 notes created today
+  const recentBranches = state.notes
+    .filter(n => n.createdAt >= todayStart)
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .slice(0, 5)
+    .map(n => n.branch)
+    .filter(Boolean);
   return {
     ts: now, hour: d.getHours(), dayOfWeek: dow,
     isWeekend: dow === 0 || dow === 6,
     bootMs: performance.now(),
-    isOnline: navigator.onLine
+    isOnline: navigator.onLine,
+    wordCount,
+    isBoot: performance.now() < TUNING.MIN_BOOT_MS_FOR_FALLBACK,
+    activeBranches,
+    recentBranches
   };
 }
 
@@ -681,7 +704,7 @@ async function addNote(text) {
   if (isDuplicateAdd(state.lastAdd, trimmed, now, TUNING.DUPLICATE_ADD_WINDOW_MS)) return;
   state.adding = true;
   try {
-    const ctx = collectContext();
+    const ctx = collectContext(trimmed);
     const due = DueParser.parse(trimmed, now);
     const cls = await classify(trimmed, ctx);
     const note = {
