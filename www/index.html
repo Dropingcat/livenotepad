@@ -273,7 +273,7 @@ import { isDuplicateAdd } from './js/dedup.js';
 import { createSerialQueue } from './js/add-queue.js';
 import { validateImport, planImport } from './js/import.js';
 import { buildExport, validateExport, computeFileHash } from './js/export-format.js';
-import { promTx, applyMergePlan, readSnapshot } from './js/idb.js';
+import { promTx, applyMergePlan, readSnapshot, applyDecay } from './js/idb.js';
 import {
   makeEvent, errorEvent, createSessionId, getOrCreateDeviceId,
   truncateText, buildAuditExport, createFallbackQueue, flushAuditQueue, readAuditLogs, DEFAULT_FALLBACK_KEY
@@ -525,7 +525,7 @@ const Audit = (() => {
 })();
 
 const WordLearningService = {
-  async onCorrection(text, fromBranch, toBranch, now, originalSeedConf) {
+  async onCorrection(text, fromBranch, toBranch, now, originalSeedConf, noteId) {
     if (originalSeedConf >= TUNING.HIGH_CONFIDENCE_GUARD) return;
     const stems = Tokenizer.stems(text);
     if (stems.length === 0) return;
@@ -533,8 +533,11 @@ const WordLearningService = {
       const all = await DB.getAllEvidence();
       const existing = all.find(e => e.stem === stem && e.branch === toBranch);
       const updated = existing
-        ? { ...existing, evidence: existing.evidence + 1, distinctNotes: existing.distinctNotes + 1, lastSeenAt: now }
-        : { stem, branch: toBranch, evidence: 1, distinctNotes: 1, lastSeenAt: now };
+        ? { ...existing, evidence: existing.evidence + 1, lastSeenAt: now,
+            noteIds: existing.noteIds ? [...new Set([...existing.noteIds, noteId])] : [noteId],
+            distinctNotes: new Set([...(existing.noteIds || []), noteId]).size }
+        : { stem, branch: toBranch, evidence: 1, distinctNotes: 1, lastSeenAt: now,
+            noteIds: [noteId] };
       await DB.putEvidence(updated);
       await this.recomputeMeta(stem);
     }
@@ -613,7 +616,7 @@ const Corrections = (() => {
         const c = chains.get(note.id);
         if (c && c.lastBranch !== c.originalBranch) {
           try {
-            await WordLearningService.onCorrection(c.noteText, c.originalBranch, c.lastBranch, Date.now(), c.originalSeedConf);
+            await WordLearningService.onCorrection(c.noteText, c.originalBranch, c.lastBranch, Date.now(), c.originalSeedConf, note.id);
             Audit.log({ ts: Date.now(), type: 'CORRECT', source: 'ui', result: 'ok', noteId: note.id, from: c.originalBranch, to: c.lastBranch });
             Audit.log({ ts: Date.now(), type: 'BRANCH_CHANGE', source: 'ui', result: 'ok', noteId: note.id, from: c.originalBranch, to: c.lastBranch });
             const notes = await DB.getAllNotes();
@@ -751,7 +754,20 @@ async function undoDelete() {
   await render();
 }
 
-async function loadNotes() { state.notes = await DB.getAllNotes(); }
+async function loadNotes() {
+  // Применить decay ко всем evidence
+  try {
+    const evidence = await DB.getAllEvidence();
+    for (const row of evidence) {
+      const decayed = applyDecay(row, Date.now());
+      if (decayed !== row) {
+        await DB.putEvidence(decayed);
+        await WordLearningService.recomputeMeta(row.stem);
+      }
+    }
+  } catch (e) { console.error('decay pass error:', e); Audit.error('note', e, { action: 'decayPass' }); }
+  state.notes = await DB.getAllNotes();
+}
 
 function formatDue(dueAt) {
   const now = new Date(); now.setHours(0,0,0,0);
