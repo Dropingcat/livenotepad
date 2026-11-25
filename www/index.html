@@ -270,6 +270,7 @@ import { nextMidnight, startOfDay } from './js/time.js';
 import { applyTextEdit } from './js/note-edit.js';
 import { GESTURE, resolveTouchAction, resolveMouseAction, placeMenu } from './js/gestures.js';
 import { isDuplicateAdd } from './js/dedup.js';
+import { createSerialQueue } from './js/add-queue.js';
 import { validateImport, planImport } from './js/import.js';
 import { buildExport, validateExport, computeFileHash } from './js/export-format.js';
 import { promTx, applyMergePlan, readSnapshot } from './js/idb.js';
@@ -661,6 +662,7 @@ function collectContext() {
 }
 
 const state = { notes: [], diagMode: false, pendingDelete: null, girlTimer: null, diagTapCount: 0, lastAdd: null, adding: false, trashExpanded: false };
+const addQueue = createSerialQueue();
 
 function liveSheet() { return filterLiveSheet(state.notes, Date.now()); }
 
@@ -1202,17 +1204,27 @@ draft.addEventListener('input', () => {
     } catch (e) { console.error('input hint error:', e); Audit.error('note', e, { action: 'inputHint' }); }
   }, 200);
 });
-draft.addEventListener('keydown', async e => {
+draft.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
     const text = draft.value.trim();
     if (text) {
-      try {
-        await addNote(text);
-        draft.value = '';
-        draft.style.height = 'auto';
-        hint.innerHTML = '';
-      } catch (err) { console.error('addNote error:', err); Audit.error('note', err, { action: 'addNote' }); toast('Ошибка: ' + err.message); }
+      draft.value = '';
+      draft.style.height = 'auto';
+      hint.innerHTML = '';
+      addQueue.enqueue(async () => {
+        try {
+          await addNote(text);
+        } catch (err) {
+          console.error('addNote error:', err);
+          Audit.error('note', err, { action: 'addNote' });
+          toast('Ошибка: ' + (err && (err.message || err.name)) || String(err));
+          if (!draft.value.trim()) {
+            draft.value = text;
+            draft.style.height = 'auto';
+          }
+        }
+      });
     }
   }
 });
