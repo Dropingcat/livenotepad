@@ -274,6 +274,7 @@ import { createSerialQueue } from './js/add-queue.js';
 import { validateImport, planImport } from './js/import.js';
 import { buildExport, validateExport, computeFileHash } from './js/export-format.js';
 import { promTx, applyMergePlan, readSnapshot, applyDecay } from './js/idb.js';
+import { extractEntities, computeCooccurrence } from './js/entities.js';
 import {
   makeEvent, errorEvent, createSessionId, getOrCreateDeviceId,
   truncateText, buildAuditExport, createFallbackQueue, flushAuditQueue, readAuditLogs, DEFAULT_FALLBACK_KEY
@@ -287,7 +288,7 @@ const DB = (() => {
   return {
     async init() {
       return new Promise((resolve, reject) => {
-        const req = indexedDB.open('livenotepad', 2);
+        const req = indexedDB.open('livenotepad', 3);
         req.onupgradeneeded = e => {
           const d = e.target.result;
           if (!d.objectStoreNames.contains('notes')) {
@@ -300,6 +301,13 @@ const DB = (() => {
           if (!d.objectStoreNames.contains('training_log')) d.createObjectStore('training_log', { keyPath: 'id', autoIncrement: true });
           if (!d.objectStoreNames.contains('backup')) {
             d.createObjectStore('backup', { keyPath: 'id', autoIncrement: true });
+          }
+          if (!d.objectStoreNames.contains('note_entities')) {
+            const ns = d.createObjectStore('note_entities', { keyPath: 'id', autoIncrement: true });
+            ns.createIndex('by_noteId', 'noteId', { unique: false });
+          }
+          if (!d.objectStoreNames.contains('entity_cooccurrence')) {
+            d.createObjectStore('entity_cooccurrence', { keyPath: ['entityA', 'entityB'] });
           }
         };
         req.onsuccess = e => { db = e.target.result; resolve(db); };
@@ -409,6 +417,32 @@ const DB = (() => {
         }
       }
       return promTx(tx, tx.objectStore('notes').count());
+    },
+    async putNoteEntities(noteId, entities) {
+      if (!db) throw new Error('DB not initialized');
+      const tx = db.transaction('note_entities', 'readwrite');
+      const record = { noteId, entities, ts: Date.now() };
+      const req = tx.objectStore('note_entities').add(record);
+      return promTx(tx, req);
+    },
+    async getNoteEntities(noteId) {
+      if (!db) throw new Error('DB not initialized');
+      const tx = db.transaction('note_entities', 'readonly');
+      const req = tx.objectStore('note_entities').index('by_noteId').get(noteId);
+      return promTx(tx, req);
+    },
+    async putCooccurrence(a, b, weight) {
+      if (!db) throw new Error('DB not initialized');
+      const readTx = db.transaction('entity_cooccurrence', 'readonly');
+      const existing = await promTx(readTx, readTx.objectStore('entity_cooccurrence').get([a, b]));
+      const writeTx = db.transaction('entity_cooccurrence', 'readwrite');
+      if (existing) {
+        existing.weight += weight;
+        writeTx.objectStore('entity_cooccurrence').put(existing);
+      } else {
+        writeTx.objectStore('entity_cooccurrence').put({ entityA: a, entityB: b, weight });
+      }
+      return promTx(writeTx, writeTx.objectStore('entity_cooccurrence').count());
     }
   }
 })();
@@ -718,6 +752,15 @@ async function addNote(text) {
       context: ctx, deletedAt: null, schemaVersion: 3
     };
     await DB.putNote(note);
+    // M5-001: извлечение сущностей и кокурренции
+    const entities = extractEntities(trimmed);
+    if (entities.length > 0) {
+      await DB.putNoteEntities(note.id, entities);
+      const pairs = computeCooccurrence(entities);
+      for (const p of pairs) {
+        await DB.putCooccurrence(p.entityA, p.entityB, 1);
+      }
+    }
     Audit.log({ ts: now, type: 'CREATE', source: 'ui', result: 'ok', noteId: note.id, branch: cls.branch, text: truncateText(trimmed) });
     state.lastAdd = { text: trimmed, ts: now };
     await loadNotes();
