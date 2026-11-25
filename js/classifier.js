@@ -129,3 +129,21 @@ export const SeedsClassifier = (() => {
     }
   };
 })();
+
+/**
+ * M4-001: Guard against TIME_FALLBACK for long text.
+ * If result.source is TIME_FALLBACK or NONE and wordCount >= 4,
+ * return NONE (don't guess by time for meaningful text).
+ * For short text (wordCount < 4), allow the fallback.
+ * @param {{ branch: string, source: string, confidence: number, matched: string }} result
+ * @param {number} wordCount Number of words in the text
+ * @returns {{ branch: string, source: string, confidence: number, matched: string }}
+ */
+export function fallbackGuard(result, wordCount) {
+  if (result.source === 'TIME_FALLBACK' || result.source === 'NONE') {
+    if (wordCount >= 4) {
+      return { branch: '', source: 'NONE', confidence: 0, matched: '' };
+    }
+  }
+  return result;
+}
