@@ -55,6 +55,15 @@ header { padding: 20px 20px 6px; flex-shrink: 0; position: relative; }
 .overdue-item { font-size: 13px; color: var(--ink); padding: 3px 0; display: flex; justify-content: space-between; gap: 8px; cursor: pointer; }
 .overdue-item .due-label { color: var(--overdue); font-size: 11px; font-family: monospace; flex-shrink: 0; }
 .overdue-more { font-size: 11px; color: var(--muted); margin-top: 4px; cursor: pointer; text-decoration: underline; }
+
+/* Дайджест */
+.digest-block { margin: 8px 20px; padding: 10px 12px; background: rgba(90, 90, 85, 0.06); border-left: 2px solid var(--accent); border-radius: 6px; }
+.digest-head { font-size: 11px; color: var(--muted); font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 6px; }
+.digest-cluster { margin-bottom: 6px; }
+.digest-cluster:last-child { margin-bottom: 0; }
+.digest-cluster-head { font-size: 10px; color: var(--muted); margin-bottom: 2px; }
+.digest-item { font-size: 12px; color: var(--ink); padding: 2px 0 2px 8px; border-left: 2px solid var(--line); margin-bottom: 2px; cursor: pointer; }
+.digest-item .digest-extra { color: var(--muted); font-size: 10px; }
 .section-head { padding: 14px 20px 4px; font-size: 11px; color: var(--muted); letter-spacing: 0.5px; }
 /* Тач по заметке/просрочке не должен уходить в нативное выделение текста (long-press). */
 .note, .overdue-item { user-select: none; -webkit-user-select: none; }
@@ -274,7 +283,7 @@ import { createSerialQueue } from './js/add-queue.js';
 import { validateImport, planImport } from './js/import.js';
 import { buildExport, validateExport, computeFileHash } from './js/export-format.js';
 import { promTx, applyMergePlan, readSnapshot, applyDecay } from './js/idb.js';
-import { extractEntities, computeCooccurrence } from './js/entities.js';
+import { extractEntities, computeCooccurrence, clusterNotes } from './js/entities.js';
 import {
   makeEvent, errorEvent, createSessionId, getOrCreateDeviceId,
   truncateText, buildAuditExport, createFallbackQueue, flushAuditQueue, readAuditLogs, DEFAULT_FALLBACK_KEY
@@ -443,6 +452,16 @@ const DB = (() => {
         writeTx.objectStore('entity_cooccurrence').put({ entityA: a, entityB: b, weight });
       }
       return promTx(writeTx, writeTx.objectStore('entity_cooccurrence').count());
+    },
+    async getAllNoteEntities() {
+      if (!db) throw new Error('DB not initialized');
+      const tx = db.transaction('note_entities', 'readonly');
+      return promTx(tx, tx.objectStore('note_entities').getAll());
+    },
+    async getAllCooccurrence() {
+      if (!db) throw new Error('DB not initialized');
+      const tx = db.transaction('entity_cooccurrence', 'readonly');
+      return promTx(tx, tx.objectStore('entity_cooccurrence').getAll());
     }
   }
 })();
@@ -926,6 +945,48 @@ async function render() {
     if (overdue.length > 0) {
       html += `<div class="overdue-block" id="overdueBlock"><div class="overdue-head" id="overdueHead"><span>Просрочено · ${overdue.length}</span><span class="chev">›</span></div><div id="overdueBody"></div></div>`;
     }
+    // Дайджест: только при OVERDUE или DUE_TODAY
+    const alertNotes = overdue.length > 0 || rest.some(n => DueStateCalculator.of(n, now) === DueState.DUE_TODAY);
+    if (alertNotes) {
+      try {
+        const allUrgent = overdue.concat(rest.filter(n => DueStateCalculator.of(n, now) === DueState.DUE_TODAY));
+        const entityRecords = await DB.getAllNoteEntities();
+        const coocs = await DB.getAllCooccurrence();
+        const entitiesByNoteId = {};
+        const entityFrequencies = {};
+        for (const rec of entityRecords) {
+          entitiesByNoteId[rec.noteId] = rec.entities || [];
+          for (const ent of (rec.entities || [])) {
+            entityFrequencies[ent] = (entityFrequencies[ent] || 0) + 1;
+          }
+        }
+        const clusters = clusterNotes(allUrgent, entitiesByNoteId, coocs, entityFrequencies);
+        if (clusters.size > 0) {
+          const maxHint = TUNING.DIGEST_MAX_CLUSTER_HINT;
+          html += `<div class="digest-block">`;
+          html += `<div class="digest-head">📌 Дайджест · ${clusters.size} темы</div>`;
+          let groupIndex = 1;
+          for (const [, noteIds] of clusters) {
+            const showIds = noteIds.slice(0, maxHint);
+            const extra = noteIds.length > maxHint ? `<span class="digest-extra"> +${noteIds.length - maxHint}</span>` : '';
+            html += `<div class="digest-cluster">`;
+            html += `<div class="digest-cluster-head">группа ${groupIndex}</div>`;
+            for (const nid of showIds) {
+              const n = allUrgent.find(x => x.id === nid);
+              if (n) {
+                html += `<div class="digest-item" data-id="${escapeHtml(nid)}"><span>· ${escapeHtml(n.text)}</span></div>`;
+              }
+            }
+            if (extra) html += `<div class="digest-item">${extra}</div>`;
+            html += `</div>`;
+            groupIndex++;
+          }
+          html += `</div>`;
+        }
+      } catch (e) {
+        console.error('digest error:', e);
+      }
+    }
     rest.forEach(n => html += renderNote(n, now));
     if (closed.length > 0) {
       html += `<div class="section-head">Сделано сегодня · ${closed.length}</div>`;
@@ -970,6 +1031,10 @@ async function render() {
     renderBody();
     head.addEventListener('click', () => { expanded = !expanded; block.classList.toggle('expanded', expanded); renderBody(); });
   }
+  // Дайджест: клик по заметке → toggle
+  list.querySelectorAll('.digest-item[data-id]').forEach(el => {
+    el.addEventListener('click', () => toggleNote(el.dataset.id));
+  });
   attachNoteHandlers();
 }
 
