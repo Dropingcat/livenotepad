@@ -1455,10 +1455,12 @@ const Monitor = (() => {
     `;
     footer.innerHTML = `
       <button class="monitor-btn primary" id="monExportLearning">⬇ Экспорт обучения</button>
+      <button class="monitor-btn" id="monExportLearningJSONL">⬇ Экспорт JSONL</button>
       <button class="monitor-btn danger" id="monClearLearning">🗑 Очистить обучение</button>
       <button class="monitor-btn" id="monRefresh">🔄 Обновить</button>
     `;
     document.getElementById('monExportLearning').onclick = () => exportLearning();
+    document.getElementById('monExportLearningJSONL').onclick = () => exportLearningJSONL();
     document.getElementById('monClearLearning').onclick = async () => {
       if (!confirm('Удалить все данные обучения (evidence + meta)? Заметки останутся.')) return;
       try {
@@ -1980,6 +1982,41 @@ const Monitor = (() => {
       Audit.log({ type: 'EXPORT', source: 'export', result: 'ok', counts: { evidence: data.counts.evidence, meta: data.counts.meta }, mode: 'learning' });
       toast('Обучение экспортировано');
     } catch (e) { Audit.error('export', e, { action: 'exportLearning' }); toast('Ошибка: ' + e.message); }
+  }
+
+  const exportLearningJSONL = async () => {
+    try {
+      const [evidence, meta] = await Promise.all([DB.getAllEvidence(), DB.getAllMeta()]);
+      const metaByStem = {};
+      for (const m of meta) { metaByStem[m.stem] = m; }
+      const lines = evidence.map(e => {
+        const m = metaByStem[e.stem];
+        return JSON.stringify({
+          ts: e.lastSeenAt || Date.now(),
+          type: 'CORRECT',
+          stem: e.stem,
+          branch: e.branch,
+          evidence: e.evidence,
+          distinctNotes: e.distinctNotes || 0,
+          noteIds: e.noteIds || [],
+          lastSeenAt: e.lastSeenAt || 0,
+          state: m ? m.state : 'CANDIDATE',
+          userCurated: m ? (m.userCurated || false) : false
+        });
+      }).join('\n');
+      const blob = new Blob([lines], { type: 'application/jsonl' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      a.href = url;
+      a.download = `livenotepad-learning-jsonl-${stamp}.jsonl`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => { try { URL.revokeObjectURL(url); } catch (e) { /* ignore */ } }, 1000);
+      Audit.log({ type: 'EXPORT', source: 'export', result: 'ok', counts: { evidence: evidence.length, meta: meta.length }, mode: 'jsonl' });
+      toast(`JSONL экспортирован: ${evidence.length} строк`);
+    } catch (e) { Audit.error('export', e, { action: 'exportLearningJSONL' }); toast('Ошибка: ' + e.message); }
   }
 
   const exportLogs = async () => {

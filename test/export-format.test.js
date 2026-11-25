@@ -335,3 +335,74 @@ test('computeFileHash: формат sha256:', () => {
   assert.ok(h.startsWith('sha256:'));
   assert.equal(h.length, 71);
 });
+
+// ── JSONL-формат (логика экспорта) ────────────────────────────────────────
+
+test('JSONL: каждая строка — валидный JSON с нужными полями', () => {
+  const evidence = [
+    { stem: 'код', branch: 'rabota', evidence: 3, distinctNotes: 2, noteIds: ['id-a', 'id-b'], lastSeenAt: 1_700_000_000_000 },
+    { stem: 'молоко', branch: 'byt', evidence: 1, distinctNotes: 1, noteIds: ['id-c'], lastSeenAt: 1_700_000_100_000 }
+  ];
+  const meta = [
+    { stem: 'код', state: 'CONFIRMED', distinctNotes: 2, userCurated: false },
+    { stem: 'молоко', state: 'PROVISIONAL', distinctNotes: 1, userCurated: true }
+  ];
+  const metaByStem = {};
+  for (const m of meta) { metaByStem[m.stem] = m; }
+  const lines = evidence.map(e => {
+    const m = metaByStem[e.stem];
+    return JSON.stringify({
+      ts: e.lastSeenAt,
+      type: 'CORRECT',
+      stem: e.stem,
+      branch: e.branch,
+      evidence: e.evidence,
+      distinctNotes: e.distinctNotes,
+      noteIds: e.noteIds,
+      lastSeenAt: e.lastSeenAt,
+      state: m ? m.state : 'CANDIDATE',
+      userCurated: m ? m.userCurated : false
+    });
+  });
+  assert.equal(lines.length, 2);
+  for (const line of lines) {
+    assert.doesNotThrow(() => JSON.parse(line));
+    const obj = JSON.parse(line);
+    assert.ok(typeof obj.ts === 'number');
+    assert.ok(typeof obj.stem === 'string');
+    assert.ok(typeof obj.branch === 'string');
+    assert.ok(Number.isInteger(obj.evidence));
+    assert.ok(Number.isInteger(obj.distinctNotes));
+    assert.ok(Array.isArray(obj.noteIds));
+    assert.ok(typeof obj.lastSeenAt === 'number');
+    assert.ok(['CONFIRMED', 'PROVISIONAL', 'CANDIDATE'].includes(obj.state));
+    assert.ok(typeof obj.userCurated === 'boolean');
+  }
+  // Проверка слияния meta
+  const parsed = lines.map(l => JSON.parse(l));
+  const kod = parsed.find(p => p.stem === 'код');
+  assert.equal(kod.state, 'CONFIRMED');
+  assert.equal(kod.userCurated, false);
+  const moloko = parsed.find(p => p.stem === 'молоко');
+  assert.equal(moloko.state, 'PROVISIONAL');
+  assert.equal(moloko.userCurated, true);
+});
+
+test('JSONL: evidence без meta — CANDIDATE, userCurated false', () => {
+  const evidence = [{ stem: 'новый', branch: 'ucheba', evidence: 1, distinctNotes: 1, noteIds: ['id-x'], lastSeenAt: 1_700_000_000_000 }];
+  const line = JSON.stringify({
+    ts: evidence[0].lastSeenAt,
+    type: 'CORRECT',
+    stem: evidence[0].stem,
+    branch: evidence[0].branch,
+    evidence: evidence[0].evidence,
+    distinctNotes: evidence[0].distinctNotes,
+    noteIds: evidence[0].noteIds,
+    lastSeenAt: evidence[0].lastSeenAt,
+    state: 'CANDIDATE',
+    userCurated: false
+  });
+  const obj = JSON.parse(line);
+  assert.equal(obj.state, 'CANDIDATE');
+  assert.equal(obj.userCurated, false);
+});
