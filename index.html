@@ -185,6 +185,14 @@ footer { padding: 8px 20px 14px; font-size: 10px; color: var(--muted); text-alig
 .mon-item .tag.complete { background: rgba(16,185,129,0.15); color: #047857; }
 .mon-item .tag.correct { background: rgba(245,158,11,0.15); color: #b45309; }
 .mon-item .tag.reopen { background: rgba(139,92,246,0.15); color: #6d28d9; }
+.mon-item .tag.delete { background: rgba(201,74,58,0.15); color: #c94a3a; }
+.mon-item .tag.restore { background: rgba(90,90,85,0.15); color: var(--muted); }
+.mon-item .tag.import { background: rgba(59,130,246,0.15); color: #2563eb; }
+.mon-item .tag.export { background: rgba(16,185,129,0.15); color: #047857; }
+.mon-item .tag.error { background: rgba(229,62,62,0.15); color: #dc2626; }
+.mon-item .tag.reset { background: rgba(139,92,246,0.15); color: #6d28d9; }
+.mon-item .tag.backup { background: rgba(251,191,36,0.2); color: #b45309; }
+.mon-item .tag.default { background: rgba(156,163,175,0.2); color: var(--muted); }
 .mon-empty { padding: 30px 20px; text-align: center; color: var(--muted); font-size: 13px; }
 .mon-filter { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
 .mon-filter-btn { padding: 4px 10px; border-radius: 12px; border: 1px solid var(--line); background: none; color: var(--muted); font-size: 11px; cursor: pointer; font-family: inherit; }
@@ -262,6 +270,7 @@ import {
   makeEvent, errorEvent, createSessionId, getOrCreateDeviceId,
   truncateText, buildAuditExport, createFallbackQueue, flushAuditQueue, readAuditLogs, DEFAULT_FALLBACK_KEY
 } from './js/audit.js';
+import { makeEvent as makeActionEvent, typeFilterTypes, typeTagClass } from './js/action-log.js';
 
 const APP_VERSION = 'alpha v0.3';
 
@@ -1356,7 +1365,7 @@ const Monitor = (() => {
     const logs = await DB.getAllLogs();
     const sorted = [...logs].sort((a,b) => b.ts - a.ts);
 
-    const types = ['ALL', 'CREATE', 'COMPLETE', 'REOPEN', 'CORRECT'];
+    const types = typeFilterTypes();
     let filtered = logFilter === 'ALL' ? sorted : sorted.filter(l => l.type === logFilter);
     if (logSearch) {
       const q = logSearch.toLowerCase();
@@ -1376,7 +1385,7 @@ const Monitor = (() => {
       </div>
       <div class="mon-section-title">События (${filtered.length}${filtered.length !== sorted.length ? ` из ${sorted.length}` : ''})</div>
       ${filtered.length === 0 ? '<div class="mon-empty">Нет записей</div>' : filtered.slice(0, 200).map(l => {
-        const tagClass = l.type === 'CREATE' ? 'create' : l.type === 'COMPLETE' ? 'complete' : l.type === 'CORRECT' ? 'correct' : 'reopen';
+        const tagClass = typeTagClass(l.type);
         const time = new Date(l.ts).toLocaleString('ru-RU');
         let details = '';
         if (l.type === 'CREATE') details = `<span class="k">текст:</span> <span class="v">${escapeHtml(l.text || '?')}</span> · <span class="k">ветка:</span> <span class="v">${l.branch || '?'}</span>`;
