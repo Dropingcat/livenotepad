@@ -102,7 +102,29 @@ www/js/audit.js         события аудита, ошибки, выгруз�
 - Находки классифицируются по 09 (уровни 1/2/3), техдолги — `TD-DEV-*` в `docs/PROBLEMS_REGISTER.md`.
 - Снапшот `.runs/M2/snapshot/` обновляется после закрытия карты; финальный — при деплое M2.
 
-## 8. Ограничения
+## 8. Параметры обучения
+
+Пороги классификации веток (`www/js/constants.js` → `TUNING`):
+
+| Параметр | Значение | Описание |
+|---|---|---|
+| `CONFLICT_RATIO_THRESHOLD` | 0.55 | Минимальная доля `best.evidence / total` для `effectiveBranch`. Ниже — `null` (конфликт веток) |
+| `HIGH_CONFIDENCE_GUARD` | 0.7 | Seed-confidence выше этого не корректируется обучением |
+| `PROVISIONAL_MIN_DISTINCT_NOTES` | 2 | Минимум уникальных заметок для статуса PROVISIONAL |
+| `CONFIRMED_MIN_EVIDENCE` | 4 | Минимум evidence для CONFIRMED |
+| `CONFIRMED_MIN_DISTINCT_NOTES` | 3 | Минимум уникальных заметок для CONFIRMED |
+| `CONFIRMED_MIN_RATIO` | 0.7 | Доля best-ветки в общем evidence для CONFIRMED |
+| `LEARNED_MIN_CONFIDENCE` | 0.5 | Порог `confidence` для `LEARNED_PROVISIONAL` в `classify()` |
+| `LEARNED_CONFIRMED_CONFIDENCE` | 0.7 | Порог `confidence` для `LEARNED_CONFIRMED` в `classify()` |
+| `SEED_HIGH_CONFIDENCE` | 0.6 | Seed-confidence выше этого даёт `source: 'SEED'` минуя обучение |
+
+**Расчёт confidence в `effectiveBranch`:**
+- `confidence = (state === 'CONFIRMED') ? max(CONFIRMED_MIN_RATIO, ratio) : max(LEARNED_MIN_CONFIDENCE, ratio)`
+- `ratio = best.evidence / total`
+
+**Жизненный цикл:** `CANDIDATE → PROVISIONAL (≥2 distinctNotes) → CONFIRMED (≥4 evidence, ≥3 distinctNotes, ≥0.7 ratio)`.
+
+## 9. Ограничения
 
 - Один пользователь, один браузер, локальные данные; синхронизации нет.
 - `training_log` не переживает «Сброс»; отдельный append-only store — 002d.
