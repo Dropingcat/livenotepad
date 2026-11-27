@@ -170,6 +170,9 @@ export function validateImport(input) {
     if (row.distinctNotes !== undefined && !isFiniteNumber(row.distinctNotes)) {
       errors.push(`word_evidence[${index}]: distinctNotes должен быть числом`);
     }
+    if (row.noteIds !== undefined && !Array.isArray(row.noteIds)) {
+      errors.push(`word_evidence[${index}]: noteIds должен быть массивом`);
+    }
     if (isNonEmptyString(row.stem) && typeof row.branch === 'string') {
       const key = evidenceKey(row);
       if (seenEvidence.has(key)) duplicateEvidence.add(`${row.stem} / ${row.branch === '' ? '""' : row.branch}`);
@@ -270,7 +273,9 @@ export function computeMetaFromEvidence(evidenceRows, existingMeta = []) {
     });
     const best = ordered.reduce((a, b) => toCount(a.evidence) > toCount(b.evidence) ? a : b);
     const ratio = toCount(best.evidence) / total;
-    const bestDistinctNotes = toCount(best.distinctNotes);
+    const bestDistinctNotes = Array.isArray(best.noteIds) && best.noteIds.length > 0
+      ? best.noteIds.length
+      : toCount(best.distinctNotes);
     const state = (toCount(best.evidence) >= TUNING.CONFIRMED_MIN_EVIDENCE &&
         bestDistinctNotes >= TUNING.CONFIRMED_MIN_DISTINCT_NOTES &&
         ratio >= TUNING.CONFIRMED_MIN_RATIO)
@@ -343,6 +348,7 @@ export function planImport(current = {}, incoming = {}) {
         branch: incomingRow.branch,
         evidence: toCount(incomingRow.evidence),
         distinctNotes: toCount(incomingRow.distinctNotes),
+        noteIds: Array.isArray(incomingRow.noteIds) ? [...incomingRow.noteIds] : undefined,
         lastSeenAt: toCount(incomingRow.lastSeenAt)
       });
       evidenceIndex.set(key, evidence.length - 1);
@@ -350,6 +356,9 @@ export function planImport(current = {}, incoming = {}) {
       continue;
     }
     const existing = evidence[index];
+    const existingNoteIds = Array.isArray(existing.noteIds) ? existing.noteIds : [];
+    const incomingNoteIds = Array.isArray(incomingRow.noteIds) ? incomingRow.noteIds : [];
+    const mergedNoteIds = [...new Set([...existingNoteIds, ...incomingNoteIds])];
     const merged = {
       ...existing,
       ...incomingRow,
@@ -359,6 +368,10 @@ export function planImport(current = {}, incoming = {}) {
       distinctNotes: Math.max(toCount(existing.distinctNotes), toCount(incomingRow.distinctNotes)),
       lastSeenAt: Math.max(toCount(existing.lastSeenAt), toCount(incomingRow.lastSeenAt))
     };
+    // Добавляем noteIds только если есть что объединять
+    if (mergedNoteIds.length > 0 || existing.noteIds || incomingRow.noteIds) {
+      merged.noteIds = mergedNoteIds;
+    }
     if (deepEqual(existing, merged)) {
       evidenceUnchanged += 1;
     } else {

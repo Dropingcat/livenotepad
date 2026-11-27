@@ -32,7 +32,7 @@
 ```bash
 npm install      # один раз
 npm run dev      # http://localhost:8080
-npm test         # 242 теста
+npm test         # 362 теста
 ```
 
 `localhost` — тоже защищённый контекст, поэтому установка PWA и полный функционал доступны и там.
@@ -194,7 +194,38 @@ npm test         # 242 теста
 
 ---
 
-## 8. Куда дальше
+## 8. Сборка APK (Capacitor)
+
+Для сборки нативного Android APK с Capacitor:
+
+```bash
+npm install
+npm test                              # тесты перед сборкой
+npm run build:android                 # инициализация/синхронизация Capacitor
+cd android
+.\gradlew.bat assembleDebug           # сборка APK
+```
+
+APK: `android/app/build/outputs/apk/debug/app-debug.apk`.
+
+Перенесите APK на телефон и установите, разрешив установку из неизвестных источников.
+
+## 9. Расширение браузера
+
+Расширение (Firefox / Chrome) живёт в ветке `extension`:
+
+```bash
+git checkout extension
+npm run extension                     # Firefox (manifest v2/v3)
+# или
+node extension/build.cjs chrome       # Chrome
+```
+
+Загрузите как временное дополнение:
+- **Firefox:** `about:debugging#/runtime/this-firefox` → «Временное дополнение» → `extension/manifest.json`.
+- **Chrome:** `chrome://extensions/` → «Загрузить распакованное расширение» → `extension/`.
+
+## 10. Куда дальше
 
 - Версия и изменения: [CHANGELOG.md](CHANGELOG.md).
 - Устройство кода: [ARCHITECTURE.md](ARCHITECTURE.md).

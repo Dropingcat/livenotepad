@@ -5,9 +5,22 @@
   "type": "module",
   "description": "Живой блокнот — alpha",
   "scripts": {
-    "test": "node --test test/*.test.js",
+    "test": "node --test",
     "test:due": "node --test test/due-parser.test.js",
     "dev": "node scripts/serve.js",
-    "extension": "node extension/build.cjs && echo Open about:debugging Load Temporary Add-on extension/manifest.json"
+    "build:android": "node scripts/generate-android-resources.cjs && npx cap copy && npx cap sync",
+    "open:android": "npx cap open android",
+    "extension": "node extension/build.cjs && echo Open about:debugging Load Temporary Add-on extension/manifest.json",
+    "extension:chrome": "node extension/build.cjs chrome && echo Open chrome://extensions Load unpacked extension/"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.6.3",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/cli": "^8.6.3",
+    "@capacitor/core": "^8.6.3",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/local-notifications": "^8.3.1",
+    "@capacitor/share": "^8.0.3",
+    "@capacitor/splash-screen": "^8.0.2"
   }
 }

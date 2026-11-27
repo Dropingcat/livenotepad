@@ -9,7 +9,8 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
-<title>Живой блокнот · alpha v0.3</title>
+<title>Живой блокнот · v0.3</title>
+<style>:root{--splash-background:#fafaf7}</style>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 :root {
@@ -26,6 +27,13 @@
     --branch-zdorovie: #66BB6A; --branch-ucheba: #AB47BC; --branch-none: #555;
     --overdue: #f08a7a; --due: #e8a06a;
   }
+}
+html[data-force-dark="true"] {
+  color-scheme: dark;
+  --bg: #1a1a1c; --ink: #e8e8e3; --muted: #9a9a95; --line: #2a2a2c; --accent: #b0b0ab;
+  --branch-rabota: #42A5F5; --branch-byt: #607D8B; --branch-ljudi: #FFB74D;
+  --branch-zdorovie: #66BB6A; --branch-ucheba: #AB47BC; --branch-none: #555;
+  --overdue: #f08a7a; --due: #e8a06a;
 }
 html, body {
   height: 100%; background: var(--bg); color: var(--ink);
@@ -55,6 +63,15 @@ header { padding: 20px 20px 6px; flex-shrink: 0; position: relative; }
 .overdue-item { font-size: 13px; color: var(--ink); padding: 3px 0; display: flex; justify-content: space-between; gap: 8px; cursor: pointer; }
 .overdue-item .due-label { color: var(--overdue); font-size: 11px; font-family: monospace; flex-shrink: 0; }
 .overdue-more { font-size: 11px; color: var(--muted); margin-top: 4px; cursor: pointer; text-decoration: underline; }
+
+/* Дайджест */
+.digest-block { margin: 8px 20px; padding: 10px 12px; background: rgba(90, 90, 85, 0.06); border-left: 2px solid var(--accent); border-radius: 6px; }
+.digest-head { font-size: 11px; color: var(--muted); font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 6px; }
+.digest-cluster { margin-bottom: 6px; }
+.digest-cluster:last-child { margin-bottom: 0; }
+.digest-cluster-head { font-size: 10px; color: var(--muted); margin-bottom: 2px; }
+.digest-item { font-size: 12px; color: var(--ink); padding: 2px 0 2px 8px; border-left: 2px solid var(--line); margin-bottom: 2px; cursor: pointer; }
+.digest-item .digest-extra { color: var(--muted); font-size: 10px; }
 .section-head { padding: 14px 20px 4px; font-size: 11px; color: var(--muted); letter-spacing: 0.5px; }
 /* Тач по заметке/просрочке не должен уходить в нативное выделение текста (long-press). */
 .note, .overdue-item { user-select: none; -webkit-user-select: none; }
@@ -214,16 +231,16 @@ footer { padding: 8px 20px 14px; font-size: 10px; color: var(--muted); text-alig
     <div class="date-title" id="dateTitle">Сегодня</div>
     <div class="date-sub" id="dateSub"></div>
     <div class="header-tools">
-      <button class="tool-btn" id="monitorBtn" title="Сервисный монитор">📊</button>
+      <button class="tool-btn" id="monitorBtn" title="Сервисный монитор" aria-label="Открыть монитор">📊</button>
       <button class="tool-btn" id="settingsBtn">⚙</button>
     </div>
   </header>
   <div class="input-wrap">
-    <textarea id="draft" rows="1" placeholder="Жду задачи. Лист открыт, места много."></textarea>
+    <textarea id="draft" rows="1" placeholder="Жду задачи. Лист открыт, места много." aria-label="Новая задача"></textarea>
     <div class="input-hint" id="inputHint"></div>
   </div>
   <div class="list-wrap" id="list"></div>
-  <footer id="footer">Живой блокнот · alpha v0.3 · лист закроется в полночь</footer>
+  <footer id="footer">Живой блокнот · v0.3 · 362 теста</footer>
 </div>
 
 <div class="girl" id="girl">
@@ -244,7 +261,7 @@ footer { padding: 8px 20px 14px; font-size: 10px; color: var(--muted); text-alig
   <div class="monitor">
     <div class="monitor-header">
       <div class="monitor-title">📊 Сервисный монитор</div>
-      <button class="monitor-close" id="monitorClose">×</button>
+      <button class="monitor-close" id="monitorClose" aria-label="Закрыть">×</button>
     </div>
     <div class="monitor-tabs">
       <button class="monitor-tab active" data-tab="overview">Обзор</button>
@@ -252,6 +269,7 @@ footer { padding: 8px 20px 14px; font-size: 10px; color: var(--muted); text-alig
       <button class="monitor-tab" data-tab="learning">Обучение</button>
       <button class="monitor-tab" data-tab="logs">Логи</button>
       <button class="monitor-tab" data-tab="backups">Копии</button>
+      <button class="monitor-tab" data-tab="settings">Настройки</button>
     </div>
     <div class="monitor-body" id="monitorBody"></div>
     <div class="monitor-footer" id="monitorFooter"></div>
@@ -261,7 +279,7 @@ footer { padding: 8px 20px 14px; font-size: 10px; color: var(--muted); text-alig
 <script type="module">
 import { TUNING, BRANCHES, BRANCH_KEYS } from './js/constants.js';
 import { Tokenizer } from './js/stemmer.js';
-import { SeedsClassifier } from './js/classifier.js';
+import { SeedsClassifier, fallbackGuard } from './js/classifier.js';
 import { DueParser } from './js/due-parser.js';
 import { DueState, DueStateCalculator, isOverdue } from './js/due-state.js';
 import { filterLiveSheet, filterDeletedToday } from './js/live-sheet.js';
@@ -273,21 +291,22 @@ import { isDuplicateAdd } from './js/dedup.js';
 import { createSerialQueue } from './js/add-queue.js';
 import { validateImport, planImport } from './js/import.js';
 import { buildExport, validateExport, computeFileHash } from './js/export-format.js';
-import { promTx, applyMergePlan, readSnapshot } from './js/idb.js';
+import { promTx, applyMergePlan, readSnapshot, applyDecay } from './js/idb.js';
+import { extractEntities, computeCooccurrence, clusterNotes } from './js/entities.js';
 import {
   makeEvent, errorEvent, createSessionId, getOrCreateDeviceId,
   truncateText, buildAuditExport, createFallbackQueue, flushAuditQueue, readAuditLogs, DEFAULT_FALLBACK_KEY
 } from './js/audit.js';
 import { makeEvent as makeActionEvent, typeFilterTypes, typeTagClass } from './js/action-log.js';
 
-const APP_VERSION = 'alpha v0.3';
+const APP_VERSION = 'v0.3';
 
 const DB = (() => {
   let db = null;
   return {
     async init() {
       return new Promise((resolve, reject) => {
-        const req = indexedDB.open('livenotepad', 2);
+        const req = indexedDB.open('livenotepad', 3);
         req.onupgradeneeded = e => {
           const d = e.target.result;
           if (!d.objectStoreNames.contains('notes')) {
@@ -300,6 +319,13 @@ const DB = (() => {
           if (!d.objectStoreNames.contains('training_log')) d.createObjectStore('training_log', { keyPath: 'id', autoIncrement: true });
           if (!d.objectStoreNames.contains('backup')) {
             d.createObjectStore('backup', { keyPath: 'id', autoIncrement: true });
+          }
+          if (!d.objectStoreNames.contains('note_entities')) {
+            const ns = d.createObjectStore('note_entities', { keyPath: 'id', autoIncrement: true });
+            ns.createIndex('by_noteId', 'noteId', { unique: false });
+          }
+          if (!d.objectStoreNames.contains('entity_cooccurrence')) {
+            d.createObjectStore('entity_cooccurrence', { keyPath: ['entityA', 'entityB'] });
           }
         };
         req.onsuccess = e => { db = e.target.result; resolve(db); };
@@ -409,6 +435,42 @@ const DB = (() => {
         }
       }
       return promTx(tx, tx.objectStore('notes').count());
+    },
+    async putNoteEntities(noteId, entities) {
+      if (!db) throw new Error('DB not initialized');
+      const tx = db.transaction('note_entities', 'readwrite');
+      const record = { noteId, entities, ts: Date.now() };
+      const req = tx.objectStore('note_entities').add(record);
+      return promTx(tx, req);
+    },
+    async getNoteEntities(noteId) {
+      if (!db) throw new Error('DB not initialized');
+      const tx = db.transaction('note_entities', 'readonly');
+      const req = tx.objectStore('note_entities').index('by_noteId').get(noteId);
+      return promTx(tx, req);
+    },
+    async putCooccurrence(a, b, weight) {
+      if (!db) throw new Error('DB not initialized');
+      const readTx = db.transaction('entity_cooccurrence', 'readonly');
+      const existing = await promTx(readTx, readTx.objectStore('entity_cooccurrence').get([a, b]));
+      const writeTx = db.transaction('entity_cooccurrence', 'readwrite');
+      if (existing) {
+        existing.weight += weight;
+        writeTx.objectStore('entity_cooccurrence').put(existing);
+      } else {
+        writeTx.objectStore('entity_cooccurrence').put({ entityA: a, entityB: b, weight });
+      }
+      return promTx(writeTx, writeTx.objectStore('entity_cooccurrence').count());
+    },
+    async getAllNoteEntities() {
+      if (!db) throw new Error('DB not initialized');
+      const tx = db.transaction('note_entities', 'readonly');
+      return promTx(tx, tx.objectStore('note_entities').getAll());
+    },
+    async getAllCooccurrence() {
+      if (!db) throw new Error('DB not initialized');
+      const tx = db.transaction('entity_cooccurrence', 'readonly');
+      return promTx(tx, tx.objectStore('entity_cooccurrence').getAll());
     }
   }
 })();
@@ -525,7 +587,7 @@ const Audit = (() => {
 })();
 
 const WordLearningService = {
-  async onCorrection(text, fromBranch, toBranch, now, originalSeedConf) {
+  async onCorrection(text, fromBranch, toBranch, now, originalSeedConf, noteId) {
     if (originalSeedConf >= TUNING.HIGH_CONFIDENCE_GUARD) return;
     const stems = Tokenizer.stems(text);
     if (stems.length === 0) return;
@@ -533,8 +595,11 @@ const WordLearningService = {
       const all = await DB.getAllEvidence();
       const existing = all.find(e => e.stem === stem && e.branch === toBranch);
       const updated = existing
-        ? { ...existing, evidence: existing.evidence + 1, distinctNotes: existing.distinctNotes + 1, lastSeenAt: now }
-        : { stem, branch: toBranch, evidence: 1, distinctNotes: 1, lastSeenAt: now };
+        ? { ...existing, evidence: existing.evidence + 1, lastSeenAt: now,
+            noteIds: existing.noteIds ? [...new Set([...existing.noteIds, noteId])] : [noteId],
+            distinctNotes: new Set([...(existing.noteIds || []), noteId]).size }
+        : { stem, branch: toBranch, evidence: 1, distinctNotes: 1, lastSeenAt: now,
+            noteIds: [noteId] };
       await DB.putEvidence(updated);
       await this.recomputeMeta(stem);
     }
@@ -585,14 +650,14 @@ async function classify(text, ctx) {
   if (seedResult) return { ...seedResult, source: 'SEED' };
   const provisional = learnedHits.filter(h => h.confidence >= TUNING.LEARNED_MIN_CONFIDENCE).sort((a,b) => b.confidence - a.confidence)[0];
   if (provisional) return { branch: provisional.branch, source: 'LEARNED_PROVISIONAL', confidence: provisional.confidence, matched: provisional.stem };
-  if (ctx.bootMs < TUNING.MIN_BOOT_MS_FOR_FALLBACK) return { branch: '', source: 'NONE', confidence: 0, matched: '' };
+  if (ctx.bootMs < TUNING.MIN_BOOT_MS_FOR_FALLBACK) return fallbackGuard({ branch: '', source: 'NONE', confidence: 0, matched: '' }, ctx.wordCount);
   const h = ctx.hour, weekend = ctx.isWeekend;
   let fb = null;
   if (!weekend && h >= 9 && h <= 17) fb = { branch: 'rabota', confidence: 0.35 };
   else if (!weekend && h >= 18 && h <= 22) fb = { branch: 'byt', confidence: 0.30 };
   else if (weekend) fb = { branch: 'byt', confidence: 0.25 };
-  if (fb) return { branch: fb.branch, source: 'TIME_FALLBACK', confidence: fb.confidence, matched: '' };
-  return { branch: '', source: 'NONE', confidence: 0, matched: '' };
+  if (fb) return fallbackGuard({ branch: fb.branch, source: 'TIME_FALLBACK', confidence: fb.confidence, matched: '' }, ctx.wordCount);
+  return fallbackGuard({ branch: '', source: 'NONE', confidence: 0, matched: '' }, ctx.wordCount);
 }
 
 const Corrections = (() => {
@@ -613,7 +678,7 @@ const Corrections = (() => {
         const c = chains.get(note.id);
         if (c && c.lastBranch !== c.originalBranch) {
           try {
-            await WordLearningService.onCorrection(c.noteText, c.originalBranch, c.lastBranch, Date.now(), c.originalSeedConf);
+            await WordLearningService.onCorrection(c.noteText, c.originalBranch, c.lastBranch, Date.now(), c.originalSeedConf, note.id);
             Audit.log({ ts: Date.now(), type: 'CORRECT', source: 'ui', result: 'ok', noteId: note.id, from: c.originalBranch, to: c.lastBranch });
             Audit.log({ ts: Date.now(), type: 'BRANCH_CHANGE', source: 'ui', result: 'ok', noteId: note.id, from: c.originalBranch, to: c.lastBranch });
             const notes = await DB.getAllNotes();
@@ -649,15 +714,38 @@ function updatePendingUI() {
   }
 }
 
-function collectContext() {
+function collectContext(text) {
   const now = Date.now();
   const d = new Date(now);
   const dow = d.getDay();
+  const words = text ? text.trim().split(/\s+/).filter(w => w.length > 0) : [];
+  const wordCount = words.length;
+  const todayStart = startOfDay(now);
+  // activeBranches: branches most used today among open notes, sorted desc
+  const todayOpen = state.notes.filter(n => n.createdAt >= todayStart && n.completedAt === null);
+  const branchCounts = {};
+  for (const n of todayOpen) {
+    if (n.branch) branchCounts[n.branch] = (branchCounts[n.branch] || 0) + 1;
+  }
+  const activeBranches = Object.entries(branchCounts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([branch]) => branch);
+  // recentBranches: branches of the last 5 notes created today
+  const recentBranches = state.notes
+    .filter(n => n.createdAt >= todayStart)
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .slice(0, 5)
+    .map(n => n.branch)
+    .filter(Boolean);
   return {
     ts: now, hour: d.getHours(), dayOfWeek: dow,
     isWeekend: dow === 0 || dow === 6,
     bootMs: performance.now(),
-    isOnline: navigator.onLine
+    isOnline: navigator.onLine,
+    wordCount,
+    isBoot: performance.now() < TUNING.MIN_BOOT_MS_FOR_FALLBACK,
+    activeBranches,
+    recentBranches
   };
 }
 
@@ -678,7 +766,7 @@ async function addNote(text) {
   if (isDuplicateAdd(state.lastAdd, trimmed, now, TUNING.DUPLICATE_ADD_WINDOW_MS)) return;
   state.adding = true;
   try {
-    const ctx = collectContext();
+    const ctx = collectContext(trimmed);
     const due = DueParser.parse(trimmed, now);
     const cls = await classify(trimmed, ctx);
     const note = {
@@ -692,6 +780,15 @@ async function addNote(text) {
       context: ctx, deletedAt: null, schemaVersion: 3
     };
     await DB.putNote(note);
+    // M5-001: извлечение сущностей и кокурренции
+    const entities = extractEntities(trimmed);
+    if (entities.length > 0) {
+      await DB.putNoteEntities(note.id, entities);
+      const pairs = computeCooccurrence(entities);
+      for (const p of pairs) {
+        await DB.putCooccurrence(p.entityA, p.entityB, 1);
+      }
+    }
     Audit.log({ ts: now, type: 'CREATE', source: 'ui', result: 'ok', noteId: note.id, branch: cls.branch, text: truncateText(trimmed) });
     state.lastAdd = { text: trimmed, ts: now };
     await loadNotes();
@@ -704,6 +801,8 @@ async function addNote(text) {
 async function toggleNote(id) {
   const n = state.notes.find(x => x.id === id);
   if (!n) return;
+  const hapticFn = window.__hapticLight;
+  if (hapticFn) hapticFn();
   const now = Date.now();
   const completing = n.completedAt === null;
   n.completedAt = completing ? now : null;
@@ -716,6 +815,8 @@ async function toggleNote(id) {
 async function deleteNote(id) {
   const n = state.notes.find(x => x.id === id);
   if (!n) return;
+  const hapticFn = window.__hapticSuccess;
+  if (hapticFn) hapticFn();
   n.deletedAt = Date.now();
   await DB.putNote(n);
   Audit.log({ ts: n.deletedAt, type: 'DELETE', source: 'ui', result: 'ok', noteId: n.id });
@@ -725,6 +826,8 @@ async function deleteNote(id) {
 async function restoreNote(id) {
   const n = state.notes.find(x => x.id === id);
   if (!n) return;
+  const hapticFn = window.__hapticSuccess;
+  if (hapticFn) hapticFn();
   n.deletedAt = null;
   await DB.putNote(n);
   Audit.log({ ts: Date.now(), type: 'RESTORE', source: 'ui', result: 'ok', noteId: n.id });
@@ -751,7 +854,20 @@ async function undoDelete() {
   await render();
 }
 
-async function loadNotes() { state.notes = await DB.getAllNotes(); }
+async function loadNotes() {
+  // Применить decay ко всем evidence
+  try {
+    const evidence = await DB.getAllEvidence();
+    for (const row of evidence) {
+      const decayed = applyDecay(row, Date.now());
+      if (decayed !== row) {
+        await DB.putEvidence(decayed);
+        await WordLearningService.recomputeMeta(row.stem);
+      }
+    }
+  } catch (e) { console.error('decay pass error:', e); Audit.error('note', e, { action: 'decayPass' }); }
+  state.notes = await DB.getAllNotes();
+}
 
 function formatDue(dueAt) {
   const now = new Date(); now.setHours(0,0,0,0);
@@ -844,6 +960,48 @@ async function render() {
     if (overdue.length > 0) {
       html += `<div class="overdue-block" id="overdueBlock"><div class="overdue-head" id="overdueHead"><span>Просрочено · ${overdue.length}</span><span class="chev">›</span></div><div id="overdueBody"></div></div>`;
     }
+    // Дайджест: только при OVERDUE или DUE_TODAY
+    const alertNotes = overdue.length > 0 || rest.some(n => DueStateCalculator.of(n, now) === DueState.DUE_TODAY);
+    if (alertNotes) {
+      try {
+        const allUrgent = overdue.concat(rest.filter(n => DueStateCalculator.of(n, now) === DueState.DUE_TODAY));
+        const entityRecords = await DB.getAllNoteEntities();
+        const coocs = await DB.getAllCooccurrence();
+        const entitiesByNoteId = {};
+        const entityFrequencies = {};
+        for (const rec of entityRecords) {
+          entitiesByNoteId[rec.noteId] = rec.entities || [];
+          for (const ent of (rec.entities || [])) {
+            entityFrequencies[ent] = (entityFrequencies[ent] || 0) + 1;
+          }
+        }
+        const clusters = clusterNotes(allUrgent, entitiesByNoteId, coocs, entityFrequencies);
+        if (clusters.size > 0) {
+          const maxHint = TUNING.DIGEST_MAX_CLUSTER_HINT;
+          html += `<div class="digest-block">`;
+          html += `<div class="digest-head">📌 Дайджест · ${clusters.size} темы</div>`;
+          let groupIndex = 1;
+          for (const [, noteIds] of clusters) {
+            const showIds = noteIds.slice(0, maxHint);
+            const extra = noteIds.length > maxHint ? `<span class="digest-extra"> +${noteIds.length - maxHint}</span>` : '';
+            html += `<div class="digest-cluster">`;
+            html += `<div class="digest-cluster-head">группа ${groupIndex}</div>`;
+            for (const nid of showIds) {
+              const n = allUrgent.find(x => x.id === nid);
+              if (n) {
+                html += `<div class="digest-item" data-id="${escapeHtml(nid)}"><span>· ${escapeHtml(n.text)}</span></div>`;
+              }
+            }
+            if (extra) html += `<div class="digest-item">${extra}</div>`;
+            html += `</div>`;
+            groupIndex++;
+          }
+          html += `</div>`;
+        }
+      } catch (e) {
+        console.error('digest error:', e);
+      }
+    }
     rest.forEach(n => html += renderNote(n, now));
     if (closed.length > 0) {
       html += `<div class="section-head">Сделано сегодня · ${closed.length}</div>`;
@@ -888,6 +1046,10 @@ async function render() {
     renderBody();
     head.addEventListener('click', () => { expanded = !expanded; block.classList.toggle('expanded', expanded); renderBody(); });
   }
+  // Дайджест: клик по заметке → toggle
+  list.querySelectorAll('.digest-item[data-id]').forEach(el => {
+    el.addEventListener('click', () => toggleNote(el.dataset.id));
+  });
   attachNoteHandlers();
 }
 
@@ -1071,7 +1233,8 @@ function openBranchMenu(noteId, x, y) {
   const menu = document.getElementById('branchMenu');
   const statuses = branchStatuses(state.notes, BRANCH_KEYS, Date.now())
     .sort((a, b) => Number(a.sleeping) - Number(b.sleeping) || (b.lastUsedAt || 0) - (a.lastUsedAt || 0));
-  menu.innerHTML = `<div class="branch-menu-item edit" data-action="edit"><span class="branch-menu-swatch" style="background: var(--muted); display:flex; align-items:center; justify-content:center; font-size:10px; color: var(--bg)">✎</span><span>Изменить текст</span></div>`
+  menu.innerHTML = `<div class="branch-menu-item edit" data-action="edit"><span class="branch-menu-swatch" style="background: var(--muted); display:flex; align-items:center; justify-content:center; font-size:10px; color: var(--bg)">✎</span><span>Изменить текст</span></div>
+    <div class="branch-menu-item" data-action="share"><span class="branch-menu-swatch" style="background: var(--accent); display:flex; align-items:center; justify-content:center; font-size:10px; color: var(--bg)">↗</span><span>Поделиться</span></div>`
     + statuses.map(({ key: k, sleeping }) => {
     const isCurrent = note.branch === k;
     const tail = isCurrent
@@ -1095,6 +1258,12 @@ function openBranchMenu(noteId, x, y) {
       if (item.dataset.action === 'edit') {
         menu.classList.remove('visible');
         startEdit(note.id);
+        return;
+      }
+      if (item.dataset.action === 'share') {
+        menu.classList.remove('visible');
+        const fn = window.__shareNote;
+        if (fn) fn(note.text);
         return;
       }
       if (item.dataset.action === 'delete') {
@@ -1236,10 +1405,10 @@ document.getElementById('settingsBtn').addEventListener('click', () => {
     document.body.classList.toggle('diag-on', state.diagMode);
     state.diagTapCount = 0;
     toast(`Диагностика ${state.diagMode ? 'включена' : 'выключена'}`);
-    document.getElementById('footer').textContent = `Живой блокнот · alpha v0.3 · диагностика: ${state.diagMode ? 'вкл' : 'выкл'}`;
+    document.getElementById('footer').textContent = `Живой блокнот · v0.3 · диагностика: ${state.diagMode ? 'вкл' : 'выкл'}`;
     render();
   } else {
-    document.getElementById('footer').textContent = `Живой блокнот · alpha v0.3 · ${state.diagTapCount}/${TUNING.DIAGNOSTIC_TAPS_REQUIRED} тапов`;
+    document.getElementById('footer').textContent = `Живой блокнот · v0.3 · ${state.diagTapCount}/${TUNING.DIAGNOSTIC_TAPS_REQUIRED} тапов`;
   }
 });
 
@@ -1295,6 +1464,7 @@ const Monitor = (() => {
       else if (currentTab === 'learning') await renderLearning(body, footer);
       else if (currentTab === 'logs') await renderLogs(body, footer);
       else if (currentTab === 'backups') await renderBackups(body, footer);
+      else if (currentTab === 'settings') await renderSettings(body, footer);
     } catch (e) {
       console.error('Monitor render error:', e);
       Audit.error('render', e, { action: 'monitorRenderTab', tab: currentTab });
@@ -1348,7 +1518,7 @@ const Monitor = (() => {
       </div>
       <div class="mon-section-title">Система</div>
       <div class="mon-item">
-        <span class="k">Версия:</span> <span class="v">alpha v0.3</span><br>
+        <span class="k">Версия:</span> <span class="v">${APP_VERSION}</span><br>
         <span class="k">БД:</span> <span class="v">${DB.isReady() ? '✓ IndexedDB' : '✗ не инициализирована'}</span><br>
         <span class="k">Диагностика:</span> <span class="v">${state.diagMode ? 'вкл' : 'выкл'}</span><br>
         <span class="k">Время:</span> <span class="v">${new Date().toLocaleString('ru-RU')}</span><br>
@@ -1407,6 +1577,17 @@ const Monitor = (() => {
     const provisional = meta.filter(m => m.state === 'PROVISIONAL').sort((a,b) => b.distinctNotes - a.distinctNotes);
     const candidate = meta.filter(m => m.state === 'CANDIDATE').sort((a,b) => b.distinctNotes - a.distinctNotes);
 
+    const filterStates = ['ALL', 'CONFIRMED', 'PROVISIONAL', 'CANDIDATE'];
+    let currentFilter = Monitor.__learningFilter || 'ALL';
+    const setFilter = (f) => { Monitor.__learningFilter = f; renderTab(); };
+
+    const filteredMeta = currentFilter === 'ALL' ? meta
+      : meta.filter(m => m.state === currentFilter);
+    const sortedFiltered = [...filteredMeta].sort((a,b) => {
+      const order = { CONFIRMED: 0, PROVISIONAL: 1, CANDIDATE: 2 };
+      return (order[a.state] || 3) - (order[b.state] || 3) || b.distinctNotes - a.distinctNotes;
+    });
+
     const renderGroup = (title, items, tagClass) => {
       if (items.length === 0) return '';
       return `
@@ -1430,19 +1611,44 @@ const Monitor = (() => {
       <div class="mon-stat-grid">
         <div class="mon-stat"><div class="mon-stat-v">${meta.length}</div><div class="mon-stat-l">слов</div></div>
         <div class="mon-stat"><div class="mon-stat-v">${evidence.length}</div><div class="mon-stat-l">evidence</div></div>
-        <div class="mon-stat"><div class="mon-stat-v">${confirmed.length}</div><div class="mon-stat-l">confirmed</div></div>
+        <div class="mon-stat"><div class="mon-stat-v" style="color:#059669">${confirmed.length}</div><div class="mon-stat-l">CONFIRMED</div></div>
+        <div class="mon-stat"><div class="mon-stat-v" style="color:#b45309">${provisional.length}</div><div class="mon-stat-l">PROVISIONAL</div></div>
+        <div class="mon-stat"><div class="mon-stat-v" style="color:var(--muted)">${candidate.length}</div><div class="mon-stat-l">CANDIDATE</div></div>
+        <div class="mon-stat"><div class="mon-stat-v" style="color:var(--accent)">${confirmed.length + provisional.length}</div><div class="mon-stat-l">Итого обучено</div></div>
       </div>
-      ${renderGroup('CONFIRMED', confirmed, 'confirmed')}
-      ${renderGroup('PROVISIONAL', provisional, 'provisional')}
-      ${renderGroup('CANDIDATE', candidate, 'candidate')}
+      <div class="mon-filter">
+        ${filterStates.map(f => `<button class="mon-filter-btn ${currentFilter === f ? 'active' : ''}" data-learning-filter="${f}">${f}${f !== 'ALL' ? ` (${meta.filter(m => m.state === f).length})` : ''}</button>`).join('')}
+      </div>
+      ${currentFilter === 'ALL'
+        ? `${renderGroup('CONFIRMED', confirmed, 'confirmed')}${renderGroup('PROVISIONAL', provisional, 'provisional')}${renderGroup('CANDIDATE', candidate, 'candidate')}`
+        : sortedFiltered.length === 0 ? '<div class="mon-empty">Нет записей этого статуса</div>'
+          : sortedFiltered.map(m => {
+            const evForStem = evidence.filter(e => e.stem === m.stem);
+            const details = evForStem.map(e => `${e.branch}:${e.evidence}`).join(', ');
+            const tagClass = m.state === 'CONFIRMED' ? 'confirmed' : m.state === 'PROVISIONAL' ? 'provisional' : 'candidate';
+            return `<div class="mon-item">
+              <span class="tag ${tagClass}">${m.state}</span>
+              <strong>${escapeHtml(m.stem)}</strong>
+              ${m.userCurated ? '<span class="tag" style="background:rgba(139,92,246,0.15);color:#6d28d9">user</span>' : ''}
+              <br>
+              <span class="k">заметок:</span> <span class="v">${m.distinctNotes}</span> · 
+              <span class="k">evidence:</span> <span class="v">{${details}}</span>
+            </div>`;
+          }).join('')}
       ${meta.length === 0 ? '<div class="mon-empty">Словарь пуст. Слова появляются после коррекций веток (long-press → сменить ветку).</div>' : ''}
     `;
     footer.innerHTML = `
       <button class="monitor-btn primary" id="monExportLearning">⬇ Экспорт обучения</button>
+      <button class="monitor-btn" id="monExportLearningJSONL">⬇ Экспорт JSONL</button>
       <button class="monitor-btn danger" id="monClearLearning">🗑 Очистить обучение</button>
       <button class="monitor-btn" id="monRefresh">🔄 Обновить</button>
     `;
+
+    document.querySelectorAll('[data-learning-filter]').forEach(btn => {
+      btn.onclick = () => setFilter(btn.dataset.learningFilter);
+    });
     document.getElementById('monExportLearning').onclick = () => exportLearning();
+    document.getElementById('monExportLearningJSONL').onclick = () => exportLearningJSONL();
     document.getElementById('monClearLearning').onclick = async () => {
       if (!confirm('Удалить все данные обучения (evidence + meta)? Заметки останутся.')) return;
       try {
@@ -1966,6 +2172,41 @@ const Monitor = (() => {
     } catch (e) { Audit.error('export', e, { action: 'exportLearning' }); toast('Ошибка: ' + e.message); }
   }
 
+  const exportLearningJSONL = async () => {
+    try {
+      const [evidence, meta] = await Promise.all([DB.getAllEvidence(), DB.getAllMeta()]);
+      const metaByStem = {};
+      for (const m of meta) { metaByStem[m.stem] = m; }
+      const lines = evidence.map(e => {
+        const m = metaByStem[e.stem];
+        return JSON.stringify({
+          ts: e.lastSeenAt || Date.now(),
+          type: 'CORRECT',
+          stem: e.stem,
+          branch: e.branch,
+          evidence: e.evidence,
+          distinctNotes: e.distinctNotes || 0,
+          noteIds: e.noteIds || [],
+          lastSeenAt: e.lastSeenAt || 0,
+          state: m ? m.state : 'CANDIDATE',
+          userCurated: m ? (m.userCurated || false) : false
+        });
+      }).join('\n');
+      const blob = new Blob([lines], { type: 'application/jsonl' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      a.href = url;
+      a.download = `livenotepad-learning-jsonl-${stamp}.jsonl`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => { try { URL.revokeObjectURL(url); } catch (e) { /* ignore */ } }, 1000);
+      Audit.log({ type: 'EXPORT', source: 'export', result: 'ok', counts: { evidence: evidence.length, meta: meta.length }, mode: 'jsonl' });
+      toast(`JSONL экспортирован: ${evidence.length} строк`);
+    } catch (e) { Audit.error('export', e, { action: 'exportLearningJSONL' }); toast('Ошибка: ' + e.message); }
+  }
+
   const exportLogs = async () => {
     try {
       const snapshot = await DB.getSnapshot();
@@ -1980,6 +2221,52 @@ const Monitor = (() => {
       Audit.log({ type: 'EXPORT', source: 'export', result: 'ok', counts: { logs: data.counts.logs }, mode: 'logs' });
       toast(`Экспортировано ${data.counts.logs} записей`);
     } catch (e) { Audit.error('export', e, { action: 'exportLogs' }); toast('Ошибка: ' + e.message); }
+  }
+
+  async function renderSettings(body, footer) {
+    Audit.log({ type: 'UI', details: { action: 'settingsOpen' } });
+
+    body.innerHTML = `
+      <div class="mon-section-title">Настройки</div>
+      <div class="mon-item">
+        <span class="k">Версия приложения:</span> <span class="v">${APP_VERSION}</span>
+      </div>
+    `;
+
+    const diagLabel = state.diagMode ? 'выключить' : 'включить';
+    footer.innerHTML = `
+      <button class="monitor-btn ${state.diagMode ? 'danger' : 'primary'}" id="monToggleDiagnostics">🩺 Диагностика · ${diagLabel}</button>
+      <button class="monitor-btn" id="monToggleDarkTheme">🌙 Тёмная тема</button>
+      <button class="monitor-btn" id="monRefresh">🔄 Обновить</button>
+    `;
+
+    document.getElementById('monToggleDiagnostics').onclick = () => {
+      state.diagMode = !state.diagMode;
+      document.body.classList.toggle('diag-on', state.diagMode);
+      state.diagTapCount = 0;
+      toast(`Диагностика ${state.diagMode ? 'включена' : 'выключена'}`);
+      if (state.diagMode) {
+        document.getElementById('footer').textContent = `Живой блокнот · v0.3 · диагностика: вкл`;
+      } else {
+        document.getElementById('footer').textContent = `Живой блокнот · v0.3 · 362 теста`;
+      }
+      render();
+      renderTab();
+    };
+
+    document.getElementById('monToggleDarkTheme').onclick = () => {
+      const isDarkNow = document.documentElement.getAttribute('data-force-dark') === 'true';
+      if (isDarkNow) {
+        document.documentElement.removeAttribute('data-force-dark');
+        toast('Тёмная тема: по системе');
+      } else {
+        document.documentElement.setAttribute('data-force-dark', 'true');
+        toast('Тёмная тема: включена');
+      }
+      renderTab();
+    };
+
+    document.getElementById('monRefresh').onclick = () => renderTab();
   }
 
   return { open, close, setTab, renderTab };
@@ -2113,6 +2400,17 @@ window.addEventListener('beforeunload', () => {
       }
     }
     console.log('[INIT] Initialization complete');
+    // Capacitor native init (не блокирует, тихо падает если не нативное окно)
+    try {
+      const { initCapacitor, shareNote, isNative, hapticLight, hapticSuccess, scheduleOverdueCheck } = await import('./js/capacitor.js');
+      window.__shareNote = shareNote;
+      window.__hapticLight = hapticLight;
+      window.__hapticSuccess = hapticSuccess;
+      window.__isNative = isNative;
+      window.__scheduleOverdueCheck = scheduleOverdueCheck;
+      await initCapacitor();
+      scheduleOverdueCheck(state.notes);
+    } catch (_) { /* ignore — не Capacitor */ }
   } catch (e) {
     console.error('[INIT] Initialization error:', e);
     Audit.error('db', e, { action: 'appInit' });

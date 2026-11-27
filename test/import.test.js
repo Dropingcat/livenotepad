@@ -586,3 +586,69 @@ test('computeMetaFromEvidence: tie-break не зависит от порядка
   assert.equal(rows[0].state, 'PROVISIONAL');
   assert.equal(rows[0].distinctNotes, 3);
 });
+
+// ── noteIds ──────────────────────────────────────────────────────────────────
+
+test('validateImport: noteIds массив строк принимается', () => {
+  const result = validateImport({
+    word_evidence: [{ stem: 's', branch: 'rabota', evidence: 1, distinctNotes: 1, noteIds: ['a', 'b'] }]
+  });
+  assert.deepEqual(result.errors, []);
+});
+
+test('validateImport: noteIds не массив отклоняется', () => {
+  const result = validateImport({
+    word_evidence: [{ stem: 's', branch: 'rabota', evidence: 1, distinctNotes: 1, noteIds: 'abc' }]
+  });
+  assert.ok(result.errors.some(e => e.includes('noteIds')));
+});
+
+test('planImport: noteIds объединяются с дедупликацией', () => {
+  const plan = planImport(
+    { notes: [], evidence: [{ stem: 's', branch: 'rabota', evidence: 2, distinctNotes: 2, noteIds: ['a', 'b'], lastSeenAt: 100 }], meta: [], logs: [] },
+    { evidence: [{ stem: 's', branch: 'rabota', evidence: 1, distinctNotes: 1, noteIds: ['b', 'c'], lastSeenAt: 50 }] }
+  );
+  const row = plan.evidence.find(r => r.stem === 's' && r.branch === 'rabota');
+  assert.deepEqual(row.noteIds.sort(), ['a', 'b', 'c']);
+  assert.equal(row.distinctNotes, 2); // max
+  assert.equal(row.evidence, 2); // max
+});
+
+test('planImport: noteIds в новой записи создаётся', () => {
+  const plan = planImport(
+    { notes: [], evidence: [], meta: [], logs: [] },
+    { evidence: [{ stem: 's', branch: 'rabota', evidence: 1, distinctNotes: 1, noteIds: ['a'], lastSeenAt: 100 }] }
+  );
+  const row = plan.evidence[0];
+  assert.deepEqual(row.noteIds, ['a']);
+});
+
+test('planImport: noteIds в существующей записи без noteIds — устанавливается', () => {
+  const plan = planImport(
+    { notes: [], evidence: [ev('s', 'rabota', 2, 2, 100)], meta: [], logs: [] },
+    { evidence: [{ stem: 's', branch: 'rabota', evidence: 1, distinctNotes: 1, noteIds: ['x'], lastSeenAt: 50 }] }
+  );
+  const row = plan.evidence.find(r => r.stem === 's' && r.branch === 'rabota');
+  assert.deepEqual(row.noteIds, ['x']);
+});
+
+test('planImport: noteIds без incoming noteIds — не создаётся', () => {
+  const plan = planImport(
+    { notes: [], evidence: [], meta: [], logs: [] },
+    { evidence: [{ stem: 's', branch: 'rabota', evidence: 1, distinctNotes: 1, lastSeenAt: 100 }] }
+  );
+  const row = plan.evidence[0];
+  assert.equal(row.noteIds, undefined);
+});
+
+test('computeMetaFromEvidence: noteIds используется для distinctNotes', () => {
+  const rows = computeMetaFromEvidence([
+    { stem: 's', branch: 'rabota', evidence: 5, distinctNotes: 3, noteIds: ['a', 'b', 'c', 'd'] }
+  ]);
+  assert.equal(rows[0].distinctNotes, 4);
+});
+
+test('computeMetaFromEvidence: без noteIds distinctNotes берётся из поля', () => {
+  const rows = computeMetaFromEvidence([ev('s', 'rabota', 5, 3)]);
+  assert.equal(rows[0].distinctNotes, 3);
+});
