@@ -22,6 +22,12 @@ www/js/dedup.js         дедуп добавления
 www/js/import.js        validateImport, planImport, computeMetaFromEvidence
 www/js/idb.js           promTx, applyMergePlan
 www/js/audit.js         события аудита, ошибки, выгрузка
+www/js/action-log.js    журнал действий
+www/js/add-queue.js     очередь добавления
+www/js/backup.js        резервное копирование
+www/js/capacitor.js     нативная оболочка (Capacitor плагины)
+www/js/entities.js      извлечение сущностей, граф, дайджест
+www/js/export-format.js формат экспорта
 ```
 
 ## 2. Хранилища IndexedDB
@@ -32,9 +38,11 @@ www/js/audit.js         события аудита, ошибки, выгруз�
 | `word_evidence` | `['stem','branch']` | счётчики обучения по слову и ветке |
 | `word_meta` | `stem` | состояние слова: CANDIDATE/PROVISIONAL/CONFIRMED, `userCurated` |
 | `training_log` | `id` autoIncrement | журнал действий и аудита (append-only) |
+| `note_entities` | `id` autoIncrement | извлечённые сущности заметок |
+| `entity_cooccurrence` | `['entityA','entityB']` | совместная встречаемость сущностей |
 | `backup` | `id` autoIncrement | резервные копии (появится в 002d) |
 
-Версии: DB v1 сейчас, v2 — в 002d (`backup`). Формат экспорта: v4 (002b). `note.schemaVersion` остаётся 3.
+Версии: DB v1 сейчас, v2 — в 002d (`backup`), v3 — SHIP-002 (`note_entities`, `entity_cooccurrence`). Формат экспорта: v4 (002b). `note.schemaVersion` остаётся 3.
 
 ## 3. Инварианты импорта
 
@@ -158,3 +166,109 @@ www/js/audit.js         события аудита, ошибки, выгруз�
 **Fallback-порог (M4-001):** После прохода всех классификаторов (SEED, learned) на последней стадии (`TIME_FALLBACK` / `NONE`) применяется `fallbackGuard()` из `classifier.js`:
 - `wordCount >= 4` → `NONE` (не угадываем ветку для длинного текста)
 - `wordCount < 4` → разрешаем `TIME_FALLBACK` (короткие / однословные задачи)
+
+---
+
+## 11. Граф и дайджест
+
+`www/js/entities.js` — извлечение сущностей, построение графа совместной встречаемости и кластеризация для дайджеста.
+
+### 11.1. Хранилища
+
+| Store | Ключ | Назначение |
+|---|---|---|
+| `note_entities` | `id` autoIncrement | сущности, извлечённые из заметки: `{ noteId, entity, freq, tf, idf, weight, ts }` |
+| `entity_cooccurrence` | `[entityA, entityB]` | совместная встречаемость: `{ entityA, entityB, count, lastSeen }` |
+
+### 11.2. Функции
+
+- `extractEntities(text, noteId)` — токенизация, фильтр стоп-слов, стемминг, IDF-взвешивание; запись в `note_entities`.
+- `computeCooccurrence(noteId)` — для всех пар сущностей заметки инкрементирует `entity_cooccurrence`.
+- `computeEdgeWeight(a, b)` — вес ребра = `cooc(a,b) / (sqrt(count(a)) * sqrt(count(b)))`; Jaccard-подобная нормализация.
+- `clusterNotes(activeNoteIds)` — агломеративная кластеризация по порогу `SIMILARITY_THRESHOLD = 0.3`; бонусы за общую ветку (+0.15) и близость по времени (≤ 4 ч, +0.1).
+
+### 11.3. Дайджест
+
+- Вызывается в `render()` только при состоянии `OVERDUE` или `DUE_TODAY`.
+- `DIGEST_MAX_CLUSTER_HINT = 3` — максимум подсказок на кластер.
+- Формат: «Ещё N похожих: … (ветка X)».
+
+---
+
+## 12. Нативная оболочка (Capacitor)
+
+### 12.1. Конфигурация
+
+`capacitor.config.json` — корень проекта:
+
+```json
+{
+  "appId": "com.dropingcat.livenotepad",
+  "appName": "Живой блокнот",
+  "webDir": "www",
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1000,
+      "launchAutoHide": true
+    }
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}
+```
+
+### 12.2. Плагины (`www/js/capacitor.js`)
+
+- **LocalNotifications** — уведомления о просроченных сроках.
+- **Share** — шеринг заметки/экспорта.
+- **Haptics** — тактильный отклик при жестах.
+- **SplashScreen** — заставка при запуске.
+- **App** — обработка `appStateChange` (фон/активность).
+
+Каждый плагин обёрнут в проверку `window.Capacitor?.isNativePlatform()`; на PWA/десктопе — no-op.
+
+### 12.3. Сборка
+
+```bash
+npm run build:android
+npx cap open android
+cd android
+.\gradlew.bat assembleDebug
+```
+
+APK: `android/app/build/outputs/apk/debug/app-debug.apk`.
+
+### 12.4. Service Worker
+
+В `www/sw.js` в ASSETS добавлены `./js/capacitor.js`.
+
+---
+
+## 13. Настройки и доступность
+
+### 13.1. Вкладка настроек
+
+6-я вкладка монитора «Настройки»: `renderSettings()`.
+
+Содержимое:
+- Переключатель тёмной темы (`data-force-dark`).
+- Информация о версии приложения.
+- Сброс обучения.
+
+### 13.2. Тёмная тема
+
+- Атрибут `data-force-dark` на `<html>` принудительно включает тёмную тему.
+- По умолчанию — `prefers-color-scheme: dark` из медиа-запроса.
+- `data-force-dark` имеет приоритет над медиа-запросом.
+
+### 13.3. ARIA
+
+- `#draft` → `aria-label="Текст заметки"`
+- `#monitorBtn` → `aria-label="Открыть монитор"`
+- `#monitorClose` → `aria-label="Закрыть монитор"`
+
+### 13.4. Предпочтение движения
+
+- `prefers-reduced-motion: reduce` отключает анимации переходов и пульсации.
+- CSS-класс `.no-animation` на `<html>` при активном медиа-запросе.

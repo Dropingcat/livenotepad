@@ -9,9 +9,10 @@
   - `background_color`, `theme_color`, `orientation: "portrait"`,
   - иконки 192×192, 512×512, maskable 512×512.
 - `www/sw.js`:
-  - кэш app shell (`index.html`, `js/*`, manifest, иконки);
+  - кэш `livenotepad-v3` (app shell: `index.html`, `js/*`, manifest, иконки);
+  - ASSETS: `./js/entities.js`, `./js/capacitor.js` и все остальные модули;
   - network-first для навигации и same-origin GET;
-  - versioned cache, удаление старых кэшей;
+  - versioned cache, удаление старых кэшей по префиксу `livenotepad-`;
   - `skipWaiting` + `clients.claim`.
 - `index.html`: `link rel="manifest"`, `apple-touch-icon`, регистрация SW (`updateViaCache: 'none'`).
 - `test/pwa.test.js`: manifest-поля, наличие иконок, базовые инварианты SW.
