@@ -792,6 +792,8 @@ async function addNote(text) {
 async function toggleNote(id) {
   const n = state.notes.find(x => x.id === id);
   if (!n) return;
+  const hapticFn = window.__hapticLight;
+  if (hapticFn) hapticFn();
   const now = Date.now();
   const completing = n.completedAt === null;
   n.completedAt = completing ? now : null;
@@ -804,6 +806,8 @@ async function toggleNote(id) {
 async function deleteNote(id) {
   const n = state.notes.find(x => x.id === id);
   if (!n) return;
+  const hapticFn = window.__hapticSuccess;
+  if (hapticFn) hapticFn();
   n.deletedAt = Date.now();
   await DB.putNote(n);
   Audit.log({ ts: n.deletedAt, type: 'DELETE', source: 'ui', result: 'ok', noteId: n.id });
@@ -813,6 +817,8 @@ async function deleteNote(id) {
 async function restoreNote(id) {
   const n = state.notes.find(x => x.id === id);
   if (!n) return;
+  const hapticFn = window.__hapticSuccess;
+  if (hapticFn) hapticFn();
   n.deletedAt = null;
   await DB.putNote(n);
   Audit.log({ ts: Date.now(), type: 'RESTORE', source: 'ui', result: 'ok', noteId: n.id });
@@ -1218,7 +1224,8 @@ function openBranchMenu(noteId, x, y) {
   const menu = document.getElementById('branchMenu');
   const statuses = branchStatuses(state.notes, BRANCH_KEYS, Date.now())
     .sort((a, b) => Number(a.sleeping) - Number(b.sleeping) || (b.lastUsedAt || 0) - (a.lastUsedAt || 0));
-  menu.innerHTML = `<div class="branch-menu-item edit" data-action="edit"><span class="branch-menu-swatch" style="background: var(--muted); display:flex; align-items:center; justify-content:center; font-size:10px; color: var(--bg)">✎</span><span>Изменить текст</span></div>`
+  menu.innerHTML = `<div class="branch-menu-item edit" data-action="edit"><span class="branch-menu-swatch" style="background: var(--muted); display:flex; align-items:center; justify-content:center; font-size:10px; color: var(--bg)">✎</span><span>Изменить текст</span></div>
+    <div class="branch-menu-item" data-action="share"><span class="branch-menu-swatch" style="background: var(--accent); display:flex; align-items:center; justify-content:center; font-size:10px; color: var(--bg)">↗</span><span>Поделиться</span></div>`
     + statuses.map(({ key: k, sleeping }) => {
     const isCurrent = note.branch === k;
     const tail = isCurrent
@@ -1242,6 +1249,12 @@ function openBranchMenu(noteId, x, y) {
       if (item.dataset.action === 'edit') {
         menu.classList.remove('visible');
         startEdit(note.id);
+        return;
+      }
+      if (item.dataset.action === 'share') {
+        menu.classList.remove('visible');
+        const fn = window.__shareNote;
+        if (fn) fn(note.text);
         return;
       }
       if (item.dataset.action === 'delete') {
@@ -2299,8 +2312,14 @@ window.addEventListener('beforeunload', () => {
     console.log('[INIT] Initialization complete');
     // Capacitor native init (не блокирует, тихо падает если не нативное окно)
     try {
-      const { initCapacitor } = await import('./js/capacitor.js');
+      const { initCapacitor, shareNote, isNative, hapticLight, hapticSuccess, scheduleOverdueCheck } = await import('./js/capacitor.js');
+      window.__shareNote = shareNote;
+      window.__hapticLight = hapticLight;
+      window.__hapticSuccess = hapticSuccess;
+      window.__isNative = isNative;
+      window.__scheduleOverdueCheck = scheduleOverdueCheck;
       await initCapacitor();
+      scheduleOverdueCheck(state.notes);
     } catch (_) { /* ignore — не Capacitor */ }
   } catch (e) {
     console.error('[INIT] Initialization error:', e);
