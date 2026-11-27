@@ -9,7 +9,8 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
-<title>Живой блокнот · alpha v0.3</title>
+<title>Живой блокнот · v0.3</title>
+<style>:root{--splash-background:#fafaf7}</style>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 :root {
@@ -26,6 +27,13 @@
     --branch-zdorovie: #66BB6A; --branch-ucheba: #AB47BC; --branch-none: #555;
     --overdue: #f08a7a; --due: #e8a06a;
   }
+}
+html[data-force-dark="true"] {
+  color-scheme: dark;
+  --bg: #1a1a1c; --ink: #e8e8e3; --muted: #9a9a95; --line: #2a2a2c; --accent: #b0b0ab;
+  --branch-rabota: #42A5F5; --branch-byt: #607D8B; --branch-ljudi: #FFB74D;
+  --branch-zdorovie: #66BB6A; --branch-ucheba: #AB47BC; --branch-none: #555;
+  --overdue: #f08a7a; --due: #e8a06a;
 }
 html, body {
   height: 100%; background: var(--bg); color: var(--ink);
@@ -223,16 +231,16 @@ footer { padding: 8px 20px 14px; font-size: 10px; color: var(--muted); text-alig
     <div class="date-title" id="dateTitle">Сегодня</div>
     <div class="date-sub" id="dateSub"></div>
     <div class="header-tools">
-      <button class="tool-btn" id="monitorBtn" title="Сервисный монитор">📊</button>
+      <button class="tool-btn" id="monitorBtn" title="Сервисный монитор" aria-label="Открыть монитор">📊</button>
       <button class="tool-btn" id="settingsBtn">⚙</button>
     </div>
   </header>
   <div class="input-wrap">
-    <textarea id="draft" rows="1" placeholder="Жду задачи. Лист открыт, места много."></textarea>
+    <textarea id="draft" rows="1" placeholder="Жду задачи. Лист открыт, места много." aria-label="Новая задача"></textarea>
     <div class="input-hint" id="inputHint"></div>
   </div>
   <div class="list-wrap" id="list"></div>
-  <footer id="footer">Живой блокнот · alpha v0.3 · лист закроется в полночь</footer>
+  <footer id="footer">Живой блокнот · v0.3 · 362 теста</footer>
 </div>
 
 <div class="girl" id="girl">
@@ -253,7 +261,7 @@ footer { padding: 8px 20px 14px; font-size: 10px; color: var(--muted); text-alig
   <div class="monitor">
     <div class="monitor-header">
       <div class="monitor-title">📊 Сервисный монитор</div>
-      <button class="monitor-close" id="monitorClose">×</button>
+      <button class="monitor-close" id="monitorClose" aria-label="Закрыть">×</button>
     </div>
     <div class="monitor-tabs">
       <button class="monitor-tab active" data-tab="overview">Обзор</button>
@@ -261,6 +269,7 @@ footer { padding: 8px 20px 14px; font-size: 10px; color: var(--muted); text-alig
       <button class="monitor-tab" data-tab="learning">Обучение</button>
       <button class="monitor-tab" data-tab="logs">Логи</button>
       <button class="monitor-tab" data-tab="backups">Копии</button>
+      <button class="monitor-tab" data-tab="settings">Настройки</button>
     </div>
     <div class="monitor-body" id="monitorBody"></div>
     <div class="monitor-footer" id="monitorFooter"></div>
@@ -290,7 +299,7 @@ import {
 } from './js/audit.js';
 import { makeEvent as makeActionEvent, typeFilterTypes, typeTagClass } from './js/action-log.js';
 
-const APP_VERSION = 'alpha v0.3';
+const APP_VERSION = 'v0.3';
 
 const DB = (() => {
   let db = null;
@@ -1396,10 +1405,10 @@ document.getElementById('settingsBtn').addEventListener('click', () => {
     document.body.classList.toggle('diag-on', state.diagMode);
     state.diagTapCount = 0;
     toast(`Диагностика ${state.diagMode ? 'включена' : 'выключена'}`);
-    document.getElementById('footer').textContent = `Живой блокнот · alpha v0.3 · диагностика: ${state.diagMode ? 'вкл' : 'выкл'}`;
+    document.getElementById('footer').textContent = `Живой блокнот · v0.3 · диагностика: ${state.diagMode ? 'вкл' : 'выкл'}`;
     render();
   } else {
-    document.getElementById('footer').textContent = `Живой блокнот · alpha v0.3 · ${state.diagTapCount}/${TUNING.DIAGNOSTIC_TAPS_REQUIRED} тапов`;
+    document.getElementById('footer').textContent = `Живой блокнот · v0.3 · ${state.diagTapCount}/${TUNING.DIAGNOSTIC_TAPS_REQUIRED} тапов`;
   }
 });
 
@@ -1455,6 +1464,7 @@ const Monitor = (() => {
       else if (currentTab === 'learning') await renderLearning(body, footer);
       else if (currentTab === 'logs') await renderLogs(body, footer);
       else if (currentTab === 'backups') await renderBackups(body, footer);
+      else if (currentTab === 'settings') await renderSettings(body, footer);
     } catch (e) {
       console.error('Monitor render error:', e);
       Audit.error('render', e, { action: 'monitorRenderTab', tab: currentTab });
@@ -1508,7 +1518,7 @@ const Monitor = (() => {
       </div>
       <div class="mon-section-title">Система</div>
       <div class="mon-item">
-        <span class="k">Версия:</span> <span class="v">alpha v0.3</span><br>
+        <span class="k">Версия:</span> <span class="v">${APP_VERSION}</span><br>
         <span class="k">БД:</span> <span class="v">${DB.isReady() ? '✓ IndexedDB' : '✗ не инициализирована'}</span><br>
         <span class="k">Диагностика:</span> <span class="v">${state.diagMode ? 'вкл' : 'выкл'}</span><br>
         <span class="k">Время:</span> <span class="v">${new Date().toLocaleString('ru-RU')}</span><br>
@@ -1567,6 +1577,17 @@ const Monitor = (() => {
     const provisional = meta.filter(m => m.state === 'PROVISIONAL').sort((a,b) => b.distinctNotes - a.distinctNotes);
     const candidate = meta.filter(m => m.state === 'CANDIDATE').sort((a,b) => b.distinctNotes - a.distinctNotes);
 
+    const filterStates = ['ALL', 'CONFIRMED', 'PROVISIONAL', 'CANDIDATE'];
+    let currentFilter = Monitor.__learningFilter || 'ALL';
+    const setFilter = (f) => { Monitor.__learningFilter = f; renderTab(); };
+
+    const filteredMeta = currentFilter === 'ALL' ? meta
+      : meta.filter(m => m.state === currentFilter);
+    const sortedFiltered = [...filteredMeta].sort((a,b) => {
+      const order = { CONFIRMED: 0, PROVISIONAL: 1, CANDIDATE: 2 };
+      return (order[a.state] || 3) - (order[b.state] || 3) || b.distinctNotes - a.distinctNotes;
+    });
+
     const renderGroup = (title, items, tagClass) => {
       if (items.length === 0) return '';
       return `
@@ -1590,11 +1611,30 @@ const Monitor = (() => {
       <div class="mon-stat-grid">
         <div class="mon-stat"><div class="mon-stat-v">${meta.length}</div><div class="mon-stat-l">слов</div></div>
         <div class="mon-stat"><div class="mon-stat-v">${evidence.length}</div><div class="mon-stat-l">evidence</div></div>
-        <div class="mon-stat"><div class="mon-stat-v">${confirmed.length}</div><div class="mon-stat-l">confirmed</div></div>
+        <div class="mon-stat"><div class="mon-stat-v" style="color:#059669">${confirmed.length}</div><div class="mon-stat-l">CONFIRMED</div></div>
+        <div class="mon-stat"><div class="mon-stat-v" style="color:#b45309">${provisional.length}</div><div class="mon-stat-l">PROVISIONAL</div></div>
+        <div class="mon-stat"><div class="mon-stat-v" style="color:var(--muted)">${candidate.length}</div><div class="mon-stat-l">CANDIDATE</div></div>
+        <div class="mon-stat"><div class="mon-stat-v" style="color:var(--accent)">${confirmed.length + provisional.length}</div><div class="mon-stat-l">Итого обучено</div></div>
       </div>
-      ${renderGroup('CONFIRMED', confirmed, 'confirmed')}
-      ${renderGroup('PROVISIONAL', provisional, 'provisional')}
-      ${renderGroup('CANDIDATE', candidate, 'candidate')}
+      <div class="mon-filter">
+        ${filterStates.map(f => `<button class="mon-filter-btn ${currentFilter === f ? 'active' : ''}" data-learning-filter="${f}">${f}${f !== 'ALL' ? ` (${meta.filter(m => m.state === f).length})` : ''}</button>`).join('')}
+      </div>
+      ${currentFilter === 'ALL'
+        ? `${renderGroup('CONFIRMED', confirmed, 'confirmed')}${renderGroup('PROVISIONAL', provisional, 'provisional')}${renderGroup('CANDIDATE', candidate, 'candidate')}`
+        : sortedFiltered.length === 0 ? '<div class="mon-empty">Нет записей этого статуса</div>'
+          : sortedFiltered.map(m => {
+            const evForStem = evidence.filter(e => e.stem === m.stem);
+            const details = evForStem.map(e => `${e.branch}:${e.evidence}`).join(', ');
+            const tagClass = m.state === 'CONFIRMED' ? 'confirmed' : m.state === 'PROVISIONAL' ? 'provisional' : 'candidate';
+            return `<div class="mon-item">
+              <span class="tag ${tagClass}">${m.state}</span>
+              <strong>${escapeHtml(m.stem)}</strong>
+              ${m.userCurated ? '<span class="tag" style="background:rgba(139,92,246,0.15);color:#6d28d9">user</span>' : ''}
+              <br>
+              <span class="k">заметок:</span> <span class="v">${m.distinctNotes}</span> · 
+              <span class="k">evidence:</span> <span class="v">{${details}}</span>
+            </div>`;
+          }).join('')}
       ${meta.length === 0 ? '<div class="mon-empty">Словарь пуст. Слова появляются после коррекций веток (long-press → сменить ветку).</div>' : ''}
     `;
     footer.innerHTML = `
@@ -1603,6 +1643,10 @@ const Monitor = (() => {
       <button class="monitor-btn danger" id="monClearLearning">🗑 Очистить обучение</button>
       <button class="monitor-btn" id="monRefresh">🔄 Обновить</button>
     `;
+
+    document.querySelectorAll('[data-learning-filter]').forEach(btn => {
+      btn.onclick = () => setFilter(btn.dataset.learningFilter);
+    });
     document.getElementById('monExportLearning').onclick = () => exportLearning();
     document.getElementById('monExportLearningJSONL').onclick = () => exportLearningJSONL();
     document.getElementById('monClearLearning').onclick = async () => {
@@ -2177,6 +2221,52 @@ const Monitor = (() => {
       Audit.log({ type: 'EXPORT', source: 'export', result: 'ok', counts: { logs: data.counts.logs }, mode: 'logs' });
       toast(`Экспортировано ${data.counts.logs} записей`);
     } catch (e) { Audit.error('export', e, { action: 'exportLogs' }); toast('Ошибка: ' + e.message); }
+  }
+
+  async function renderSettings(body, footer) {
+    Audit.log({ type: 'UI', details: { action: 'settingsOpen' } });
+
+    body.innerHTML = `
+      <div class="mon-section-title">Настройки</div>
+      <div class="mon-item">
+        <span class="k">Версия приложения:</span> <span class="v">${APP_VERSION}</span>
+      </div>
+    `;
+
+    const diagLabel = state.diagMode ? 'выключить' : 'включить';
+    footer.innerHTML = `
+      <button class="monitor-btn ${state.diagMode ? 'danger' : 'primary'}" id="monToggleDiagnostics">🩺 Диагностика · ${diagLabel}</button>
+      <button class="monitor-btn" id="monToggleDarkTheme">🌙 Тёмная тема</button>
+      <button class="monitor-btn" id="monRefresh">🔄 Обновить</button>
+    `;
+
+    document.getElementById('monToggleDiagnostics').onclick = () => {
+      state.diagMode = !state.diagMode;
+      document.body.classList.toggle('diag-on', state.diagMode);
+      state.diagTapCount = 0;
+      toast(`Диагностика ${state.diagMode ? 'включена' : 'выключена'}`);
+      if (state.diagMode) {
+        document.getElementById('footer').textContent = `Живой блокнот · v0.3 · диагностика: вкл`;
+      } else {
+        document.getElementById('footer').textContent = `Живой блокнот · v0.3 · 362 теста`;
+      }
+      render();
+      renderTab();
+    };
+
+    document.getElementById('monToggleDarkTheme').onclick = () => {
+      const isDarkNow = document.documentElement.getAttribute('data-force-dark') === 'true';
+      if (isDarkNow) {
+        document.documentElement.removeAttribute('data-force-dark');
+        toast('Тёмная тема: по системе');
+      } else {
+        document.documentElement.setAttribute('data-force-dark', 'true');
+        toast('Тёмная тема: включена');
+      }
+      renderTab();
+    };
+
+    document.getElementById('monRefresh').onclick = () => renderTab();
   }
 
   return { open, close, setTab, renderTab };
