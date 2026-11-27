@@ -842,7 +842,9 @@ async function toggleNote(id) {
   n.reopenedAt = completing ? null : now;
   await DB.putNote(n);
   Audit.log({ ts: now, type: n.completedAt !== null ? 'COMPLETE' : 'REOPEN', source: 'ui', result: 'ok', noteId: n.id });
+  const prev = state.activeSheet;
   await render();
+  checkSheetDisappear(prev);
 }
 
 async function deleteNote(id) {
@@ -853,7 +855,9 @@ async function deleteNote(id) {
   n.deletedAt = Date.now();
   await DB.putNote(n);
   Audit.log({ ts: n.deletedAt, type: 'DELETE', source: 'ui', result: 'ok', noteId: n.id });
+  const prev = state.activeSheet;
   await render();
+  checkSheetDisappear(prev);
 }
 
 async function restoreNote(id) {
@@ -1018,6 +1022,14 @@ function notifyIfOtherSheet(note, sheets) {
   if (target === state.activeSheet) return;
   const title = target === null ? 'главном' : `«${sheetTitle(target)}»`;
   toast(`Заметка на ${title}`, { actionLabel: 'Открыть', onAction: () => switchSheetTo(target), duration: 4000 });
+}
+
+function checkSheetDisappear(prevActive) {
+  if (prevActive === null) return;
+  const sheets = computeSheets(state.notes);
+  if (!resolveActiveSheet(sheets, prevActive)) {
+    toast(`Лист «${sheetTitle(prevActive)}» свернулся — заметки снова на главном`);
+  }
 }
 
 async function render() {
