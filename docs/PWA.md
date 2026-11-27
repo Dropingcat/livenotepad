@@ -9,8 +9,8 @@
   - `background_color`, `theme_color`, `orientation: "portrait"`,
   - иконки 192×192, 512×512, maskable 512×512.
 - `www/sw.js`:
-  - кэш `livenotepad-v3` (app shell: `index.html`, `js/*`, manifest, иконки);
-  - ASSETS: `./js/entities.js`, `./js/capacitor.js` и все остальные модули;
+  - кэш `livenotepad-v4` (app shell: `index.html`, `js/*`, manifest, иконки);
+  - ASSETS: `./js/sheets.js`, `./js/entities.js`, `./js/capacitor.js` и все остальные модули;
   - network-first для навигации и same-origin GET;
   - versioned cache, удаление старых кэшей по префиксу `livenotepad-`;
   - `skipWaiting` + `clients.claim`.
