@@ -3,7 +3,7 @@
 
 export const DEFAULT_DEVICE_KEY = 'livenotepad.deviceId';
 export const DEFAULT_FALLBACK_KEY = 'livenotepad.auditFallback';
-export const DEFAULT_APP_VERSION = 'v0.3';
+export const DEFAULT_APP_VERSION = 'v0.4';
 export const AUDIT_FORMAT = 'livenotepad-audit';
 export const AUDIT_VERSION = 1;
 

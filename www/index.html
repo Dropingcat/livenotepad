@@ -9,7 +9,7 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
-<title>Живой блокнот · v0.3</title>
+<title>Живой блокнот · v0.4</title>
 <style>:root{--splash-background:#fafaf7}</style>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -128,10 +128,25 @@ body.diag-on .note-diag { display: block; }
 .branch-menu-item.clear { color: var(--muted); border-top: 1px solid var(--line); margin-top: 4px; padding-top: 10px; }
 .branch-menu-item.danger { color: var(--overdue); border-top: 1px solid var(--line); margin-top: 4px; padding-top: 10px; }
 footer { padding: 8px 20px 14px; font-size: 10px; color: var(--muted); text-align: center; flex-shrink: 0; border-top: 1px solid var(--line); }
-.toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-60px); background: var(--ink); color: var(--bg); padding: 8px 16px; border-radius: 20px; font-size: 13px; opacity: 0; transition: opacity 0.3s, transform 0.3s; z-index: 300; pointer-events: none; }
+.toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-60px); background: var(--ink); color: var(--bg); padding: 8px 16px; border-radius: 20px; font-size: 13px; opacity: 0; transition: opacity 0.3s, transform 0.3s; z-index: 300; pointer-events: none; display: flex; gap: 10px; align-items: center; }
+.toast.actionable { pointer-events: auto; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast-action { background: none; border: none; color: var(--due); font: inherit; font-weight: 600; text-decoration: underline; cursor: pointer; padding: 0; white-space: nowrap; }
 .corr-pending { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 6px 14px; border-radius: 16px; font-size: 11px; font-family: monospace; opacity: 0; transition: opacity 0.3s; z-index: 90; pointer-events: none; }
 .corr-pending.show { opacity: 1; }
+
+/* ПОЛОСКА ЛИСТОВ */
+.sheet-bar { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 12px; flex-shrink: 0; border-top: 1px solid var(--line); touch-action: none; user-select: none; }
+.sheet-bar[hidden] { display: none; }
+.sheet-arrow { width: 32px; height: 32px; background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.sheet-arrow:disabled { opacity: 0.25; pointer-events: none; }
+.sheet-arrow:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 4px; }
+.sheet-dots { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.sheet-dot { width: 24px; height: 24px; position: relative; background: none; border: none; cursor: pointer; padding: 0; display: block; }
+.sheet-dot::before { content: ''; position: absolute; inset: 7px; border-radius: 50%; border: 1.5px solid var(--muted); background: transparent; transition: background 0.15s, border-color 0.15s; }
+.sheet-dot.active::before { background: var(--dot-color, var(--accent)); border-color: var(--ink); }
+.sheet-dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; border-radius: 50%; }
+.sheet-title { flex: 1; min-width: 0; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
 
 /* МОНИТОР — ПОЛНОЭКРАННЫЙ */
 .monitor-backdrop {
@@ -240,7 +255,13 @@ footer { padding: 8px 20px 14px; font-size: 10px; color: var(--muted); text-alig
     <div class="input-hint" id="inputHint"></div>
   </div>
   <div class="list-wrap" id="list"></div>
-  <footer id="footer">Живой блокнот · v0.3 · 362 теста</footer>
+  <nav class="sheet-bar" id="sheetBar" aria-label="Листы" hidden>
+    <button class="sheet-arrow" id="sheetPrev" type="button" aria-label="Предыдущий лист">‹</button>
+    <div class="sheet-dots" id="sheetDots"></div>
+    <div class="sheet-title" id="sheetTitle" aria-live="polite"></div>
+    <button class="sheet-arrow" id="sheetNext" type="button" aria-label="Следующий лист">›</button>
+  </nav>
+  <footer id="footer">Живой блокнот · v0.4</footer>
 </div>
 
 <div class="girl" id="girl">
@@ -293,13 +314,14 @@ import { validateImport, planImport } from './js/import.js';
 import { buildExport, validateExport, computeFileHash } from './js/export-format.js';
 import { promTx, applyMergePlan, readSnapshot, applyDecay } from './js/idb.js';
 import { extractEntities, computeCooccurrence, clusterNotes } from './js/entities.js';
+import { computeSheets, overflowKeys, filterBySheet, resolveActiveSheet, shiftSheet, sheetTitle } from './js/sheets.js';
 import {
   makeEvent, errorEvent, createSessionId, getOrCreateDeviceId,
   truncateText, buildAuditExport, createFallbackQueue, flushAuditQueue, readAuditLogs, DEFAULT_FALLBACK_KEY
 } from './js/audit.js';
 import { makeEvent as makeActionEvent, typeFilterTypes, typeTagClass } from './js/action-log.js';
 
-const APP_VERSION = 'v0.3';
+const APP_VERSION = 'v0.4';
 
 const DB = (() => {
   let db = null;
@@ -690,7 +712,16 @@ const Corrections = (() => {
               await DB.putNote(n);
               await loadNotes(); // ИСПРАВЛЕНО: обновляем state.notes
               await render();
-              toast(`ветка → ${BRANCHES[c.lastBranch]?.name || 'пусто'}`);
+              // toast с учётом листов
+              const cur = state.notes.find(x => x.id === note.id);
+              if (cur) {
+                const tgt = noteTargetSheet(cur, computeSheets(state.notes));
+                if (tgt !== state.activeSheet) {
+                  toast(`Ветка → ${BRANCHES[c.lastBranch]?.name || 'пусто'} · на листе`, { actionLabel: 'Открыть', onAction: () => switchSheetTo(tgt), duration: 4000 });
+                } else {
+                  toast(`ветка → ${BRANCHES[c.lastBranch]?.name || 'пусто'}`);
+                }
+              }
             }
           } catch (e) { console.error('correction commit error:', e); Audit.error('db', e, { action: 'correctionCommit', noteId: note.id }); }
         }
@@ -749,7 +780,7 @@ function collectContext(text) {
   };
 }
 
-const state = { notes: [], diagMode: false, pendingDelete: null, girlTimer: null, diagTapCount: 0, lastAdd: null, adding: false, trashExpanded: false };
+const state = { notes: [], diagMode: false, pendingDelete: null, girlTimer: null, diagTapCount: 0, lastAdd: null, adding: false, trashExpanded: false, activeSheet: null };
 const addQueue = createSerialQueue();
 
 function liveSheet() { return filterLiveSheet(state.notes, Date.now()); }
@@ -793,6 +824,8 @@ async function addNote(text) {
     state.lastAdd = { text: trimmed, ts: now };
     await loadNotes();
     await render();
+    const sheets = computeSheets(state.notes);
+    notifyIfOtherSheet(note, sheets);
   } finally {
     state.adding = false;
   }
@@ -933,12 +966,75 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+function renderSheetBar(sheets, activeKey) {
+  const bar = document.getElementById('sheetBar');
+  if (sheets.length <= 1) {
+    bar.hidden = true;
+    return;
+  }
+  bar.hidden = false;
+  // Заголовок
+  const active = sheets.find(s => s.key === activeKey) || sheets[0];
+  document.getElementById('sheetTitle').textContent = `${active.title} · ${active.count}`;
+  // Точки
+  const dots = document.getElementById('sheetDots');
+  dots.innerHTML = sheets.map(s => {
+    const isActive = s.key === activeKey;
+    const color = s.key === null ? 'var(--accent)' : `var(--branch-${s.key})`;
+    return `<button class="sheet-dot${isActive ? ' active' : ''}" type="button" data-sheet="${s.key === null ? 'main' : s.key}" style="--dot-color: ${color}" aria-label="${s.title}, заметок: ${s.count}" ${isActive ? 'aria-current="page"' : ''}></button>`;
+  }).join('');
+  // Стрелки
+  const idx = sheets.indexOf(active);
+  document.getElementById('sheetPrev').disabled = idx <= 0;
+  document.getElementById('sheetNext').disabled = idx >= sheets.length - 1;
+}
+
+function switchSheetTo(key) {
+  const sheets = computeSheets(state.notes);
+  if (key !== null) key = resolveActiveSheet(sheets, key);
+  if (key === state.activeSheet) return;
+  state.activeSheet = key;
+  render();
+  document.getElementById('list').scrollTop = 0;
+  const fn = window.__hapticLight;
+  if (fn) fn();
+  Audit.log({ type: 'UI', source: 'ui', result: 'ok', details: { action: 'sheetSwitch', sheet: key ?? 'main' } });
+}
+
+function switchSheetBy(delta) {
+  const sheets = computeSheets(state.notes);
+  const next = shiftSheet(sheets, state.activeSheet, delta);
+  if (next === null || next === state.activeSheet) return;
+  switchSheetTo(next);
+}
+
+function noteTargetSheet(note, sheets) {
+  const overflow = new Set(overflowKeys(sheets));
+  return (note.branch && overflow.has(note.branch)) ? note.branch : null;
+}
+
+function notifyIfOtherSheet(note, sheets) {
+  const target = noteTargetSheet(note, sheets);
+  if (target === state.activeSheet) return;
+  const title = target === null ? 'главном' : `«${sheetTitle(target)}»`;
+  toast(`Заметка на ${title}`, { actionLabel: 'Открыть', onAction: () => switchSheetTo(target), duration: 4000 });
+}
+
 async function render() {
   document.getElementById('dateTitle').textContent = 'Сегодня';
   document.getElementById('dateSub').textContent = formatDate(Date.now());
   const list = document.getElementById('list');
-  const sheet = liveSheet();
   const now = Date.now();
+
+  // Листы
+  const sheets = computeSheets(state.notes);
+  state.activeSheet = resolveActiveSheet(sheets, state.activeSheet);
+  const activeKey = state.activeSheet;
+  const overflow = new Set(overflowKeys(sheets));
+
+  // Живой лист, отфильтрованный по активному листу
+  const allSheet = liveSheet();
+  const sheet = filterBySheet(allSheet, activeKey, overflow);
   const open = sheet.filter(n => n.completedAt === null);
   const closed = sheet.filter(n => n.completedAt !== null);
   open.sort((a,b) => {
@@ -951,55 +1047,84 @@ async function render() {
     return b.createdAt - a.createdAt;
   });
   closed.sort((a,b) => b.completedAt - a.completedAt);
-  const overdue = open.filter(n => isOverdue(DueStateCalculator.of(n, now)));
-  const rest = open.filter(n => !isOverdue(DueStateCalculator.of(n, now)));
+
+  // «Просрочено»: на главном глобальное, на листе ветки — только её
+  let overdue, rest;
+  if (activeKey === null) {
+    const allOpen = allSheet.filter(n => n.completedAt === null);
+    allOpen.sort((a,b) => {
+      const sa = DueStateCalculator.sortKey(DueStateCalculator.of(a, now));
+      const sb = DueStateCalculator.sortKey(DueStateCalculator.of(b, now));
+      if (sa !== sb) return sa - sb;
+      if (a.dueAt && b.dueAt) return a.dueAt - b.dueAt;
+      if (a.dueAt) return -1;
+      if (b.dueAt) return 1;
+      return b.createdAt - a.createdAt;
+    });
+    overdue = allOpen.filter(n => isOverdue(DueStateCalculator.of(n, now)));
+    const overdueIds = new Set(overdue.map(n => n.id));
+    rest = open.filter(n => !overdueIds.has(n.id));
+  } else {
+    overdue = open.filter(n => isOverdue(DueStateCalculator.of(n, now)));
+    rest = open.filter(n => !isOverdue(DueStateCalculator.of(n, now)));
+  }
+
   let html = '';
-  if (sheet.length === 0) {
-    html += `<div class="empty"><div class="greeting">Жду задачи.</div>Лист открыт, места много.</div>`;
+  const sheetEmpty = sheet.length === 0 && overdue.length === 0;
+  if (sheetEmpty) {
+    if (activeKey === null && sheets.length > 1 && state.notes.some(n => !n.deletedAt && n.completedAt == null)) {
+      html += `<div class="empty"><div class="greeting">На главном пусто.</div>Всё разложено по листам — полистай внизу.</div>`;
+    } else if (activeKey !== null) {
+      html += `<div class="empty"><div class="greeting">На этом листе пусто.</div>Заметки вернутся, когда ветка снова разрастётся.</div>`;
+    } else {
+      html += `<div class="empty"><div class="greeting">Жду задачи.</div>Лист открыт, места много.</div>`;
+    }
   } else {
     if (overdue.length > 0) {
       html += `<div class="overdue-block" id="overdueBlock"><div class="overdue-head" id="overdueHead"><span>Просрочено · ${overdue.length}</span><span class="chev">›</span></div><div id="overdueBody"></div></div>`;
     }
-    // Дайджест: только при OVERDUE или DUE_TODAY
-    const alertNotes = overdue.length > 0 || rest.some(n => DueStateCalculator.of(n, now) === DueState.DUE_TODAY);
-    if (alertNotes) {
-      try {
-        const allUrgent = overdue.concat(rest.filter(n => DueStateCalculator.of(n, now) === DueState.DUE_TODAY));
-        const entityRecords = await DB.getAllNoteEntities();
-        const coocs = await DB.getAllCooccurrence();
-        const entitiesByNoteId = {};
-        const entityFrequencies = {};
-        for (const rec of entityRecords) {
-          entitiesByNoteId[rec.noteId] = rec.entities || [];
-          for (const ent of (rec.entities || [])) {
-            entityFrequencies[ent] = (entityFrequencies[ent] || 0) + 1;
-          }
-        }
-        const clusters = clusterNotes(allUrgent, entitiesByNoteId, coocs, entityFrequencies);
-        if (clusters.size > 0) {
-          const maxHint = TUNING.DIGEST_MAX_CLUSTER_HINT;
-          html += `<div class="digest-block">`;
-          html += `<div class="digest-head">📌 Дайджест · ${clusters.size} темы</div>`;
-          let groupIndex = 1;
-          for (const [, noteIds] of clusters) {
-            const showIds = noteIds.slice(0, maxHint);
-            const extra = noteIds.length > maxHint ? `<span class="digest-extra"> +${noteIds.length - maxHint}</span>` : '';
-            html += `<div class="digest-cluster">`;
-            html += `<div class="digest-cluster-head">группа ${groupIndex}</div>`;
-            for (const nid of showIds) {
-              const n = allUrgent.find(x => x.id === nid);
-              if (n) {
-                html += `<div class="digest-item" data-id="${escapeHtml(nid)}"><span>· ${escapeHtml(n.text)}</span></div>`;
-              }
+    // Дайджест: только на главном
+    if (activeKey === null) {
+      const alertNotes = overdue.length > 0 || rest.some(n => DueStateCalculator.of(n, now) === DueState.DUE_TODAY);
+      if (alertNotes) {
+        try {
+          const allUrgent = overdue.concat(rest.filter(n => DueStateCalculator.of(n, now) === DueState.DUE_TODAY));
+          const entityRecords = await DB.getAllNoteEntities();
+          const coocs = await DB.getAllCooccurrence();
+          const entitiesByNoteId = {};
+          const entityFrequencies = {};
+          for (const rec of entityRecords) {
+            entitiesByNoteId[rec.noteId] = rec.entities || [];
+            for (const ent of (rec.entities || [])) {
+              entityFrequencies[ent] = (entityFrequencies[ent] || 0) + 1;
             }
-            if (extra) html += `<div class="digest-item">${extra}</div>`;
-            html += `</div>`;
-            groupIndex++;
           }
-          html += `</div>`;
+          const clusters = clusterNotes(allUrgent, entitiesByNoteId, coocs, entityFrequencies);
+          if (clusters.size > 0) {
+            const maxHint = TUNING.DIGEST_MAX_CLUSTER_HINT;
+            html += `<div class="digest-block">`;
+            html += `<div class="digest-head">📌 Дайджест · ${clusters.size} темы</div>`;
+            let groupIndex = 1;
+            for (const [, noteIds] of clusters) {
+              const showIds = noteIds.slice(0, maxHint);
+              const extra = noteIds.length > maxHint ? `<span class="digest-extra"> +${noteIds.length - maxHint}</span>` : '';
+              html += `<div class="digest-cluster">`;
+              html += `<div class="digest-cluster-head">группа ${groupIndex}</div>`;
+              for (const nid of showIds) {
+                const n = allUrgent.find(x => x.id === nid);
+                if (n) {
+                  html += `<div class="digest-item" data-id="${escapeHtml(nid)}"><span>· ${escapeHtml(n.text)}</span></div>`;
+                }
+              }
+              if (extra) html += `<div class="digest-item">${extra}</div>`;
+              html += `</div>`;
+              groupIndex++;
+            }
+            html += `</div>`;
+          }
+        } catch (e) {
+          console.error('digest error:', e);
         }
-      } catch (e) {
-        console.error('digest error:', e);
       }
     }
     rest.forEach(n => html += renderNote(n, now));
@@ -1008,7 +1133,8 @@ async function render() {
       closed.forEach(n => html += renderNote(n, now));
     }
   }
-  const deleted = filterDeletedToday(state.notes, now);
+  const allDeleted = filterDeletedToday(state.notes, now);
+  const deleted = filterBySheet(allDeleted, activeKey, overflow);
   if (deleted.length > 0) {
     html += `<div class="trash-block ${state.trashExpanded ? 'expanded' : ''}" id="trashBlock">
       <div class="trash-head" id="trashHead"><span>Корзина · ${deleted.length}</span><span class="chev">›</span></div>
@@ -1050,6 +1176,7 @@ async function render() {
   list.querySelectorAll('.digest-item[data-id]').forEach(el => {
     el.addEventListener('click', () => toggleNote(el.dataset.id));
   });
+  renderSheetBar(sheets, activeKey);
   attachNoteHandlers();
 }
 
@@ -1405,21 +1532,41 @@ document.getElementById('settingsBtn').addEventListener('click', () => {
     document.body.classList.toggle('diag-on', state.diagMode);
     state.diagTapCount = 0;
     toast(`Диагностика ${state.diagMode ? 'включена' : 'выключена'}`);
-    document.getElementById('footer').textContent = `Живой блокнот · v0.3 · диагностика: ${state.diagMode ? 'вкл' : 'выкл'}`;
+    document.getElementById('footer').textContent = `Живой блокнот · v0.4 · диагностика: ${state.diagMode ? 'вкл' : 'выкл'}`;
     render();
   } else {
-    document.getElementById('footer').textContent = `Живой блокнот · v0.3 · ${state.diagTapCount}/${TUNING.DIAGNOSTIC_TAPS_REQUIRED} тапов`;
+    document.getElementById('footer').textContent = `Живой блокнот · v0.4 · ${state.diagTapCount}/${TUNING.DIAGNOSTIC_TAPS_REQUIRED} тапов`;
   }
 });
 
 document.getElementById('girlUndo').addEventListener('click', undoDelete);
 document.getElementById('girl').addEventListener('click', e => { if (e.target.id !== 'girlUndo') undoDelete(); });
 
-function toast(msg) {
+let toastTimer = null;
+function toast(msg, opts = {}) {
   const t = document.getElementById('toast');
-  t.textContent = msg;
+  clearTimeout(toastTimer);
+  t.textContent = '';
+  t.classList.remove('show', 'actionable');
+  const text = document.createTextNode(msg);
+  t.appendChild(text);
+  const { actionLabel, onAction, duration = 2500 } = opts || {};
+  if (actionLabel && typeof onAction === 'function') {
+    const btn = document.createElement('button');
+    btn.className = 'toast-action';
+    btn.type = 'button';
+    btn.textContent = actionLabel;
+    btn.addEventListener('click', e => { e.stopPropagation(); hideToast(); onAction(); }, { once: true });
+    t.appendChild(btn);
+    t.classList.add('actionable');
+  }
   t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2500);
+  toastTimer = setTimeout(hideToast, duration);
+}
+function hideToast() {
+  const t = document.getElementById('toast');
+  t.classList.remove('show');
+  clearTimeout(toastTimer);
 }
 
 const Monitor = (() => {
@@ -2246,9 +2393,9 @@ const Monitor = (() => {
       state.diagTapCount = 0;
       toast(`Диагностика ${state.diagMode ? 'включена' : 'выключена'}`);
       if (state.diagMode) {
-        document.getElementById('footer').textContent = `Живой блокнот · v0.3 · диагностика: вкл`;
+        document.getElementById('footer').textContent = `Живой блокнот · v0.4 · диагностика: вкл`;
       } else {
-        document.getElementById('footer').textContent = `Живой блокнот · v0.3 · 362 теста`;
+        document.getElementById('footer').textContent = `Живой блокнот · v0.4`;
       }
       render();
       renderTab();
@@ -2338,6 +2485,65 @@ window.addEventListener('pageshow', e => {
   if (e.persisted) onResume();
 });
 window.addEventListener('focus', onResume);
+
+// Клавиатура: переключение листов
+document.addEventListener('keydown', e => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+  const t = e.target;
+  if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+  if (document.getElementById('monitorBackdrop').classList.contains('visible')) return;
+  if (document.getElementById('branchMenu').classList.contains('visible')) return;
+  const sheets = computeSheets(state.notes);
+  if (sheets.length <= 1) return;
+  e.preventDefault();
+  switchSheetBy(e.key === 'ArrowRight' ? 1 : -1);
+});
+
+// Полоска листов: жесты и клики
+{
+  const bar = document.getElementById('sheetBar');
+  let barStart = null, barMoved = false;
+  let suppressSheetClick = 0;
+
+  bar.addEventListener('pointerdown', e => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    barStart = { x: e.clientX, y: e.clientY, id: e.pointerId };
+    barMoved = false;
+    e.target.setPointerCapture?.(e.pointerId);
+  });
+  bar.addEventListener('pointermove', e => {
+    if (!barStart || e.pointerId !== barStart.id) return;
+    if (Math.abs(e.clientX - barStart.x) > GESTURE.MOVE_THRESHOLD || Math.abs(e.clientY - barStart.y) > GESTURE.MOVE_THRESHOLD) {
+      barMoved = true;
+    }
+  });
+  bar.addEventListener('pointerup', e => {
+    if (!barStart || e.pointerId !== barStart.id) return;
+    const dx = e.clientX - barStart.x, dy = e.clientY - barStart.y;
+    barStart = null;
+    const action = resolveSheetSwipe({ dx, dy });
+    if (action !== 'none') {
+      suppressSheetClick = Date.now() + 150;
+      switchSheetBy(action === 'next' ? 1 : -1);
+    } else if (barMoved) {
+      suppressSheetClick = Date.now() + 150;
+    }
+  });
+  bar.addEventListener('pointercancel', () => { barStart = null; });
+
+  // Точки — делегирование
+  document.getElementById('sheetDots').addEventListener('click', e => {
+    const btn = e.target.closest('[data-sheet]');
+    if (!btn) return;
+    if (Date.now() < suppressSheetClick) return;
+    switchSheetTo(btn.dataset.sheet === 'main' ? null : btn.dataset.sheet);
+  });
+
+  // Стрелки
+  document.getElementById('sheetPrev').addEventListener('click', () => switchSheetBy(-1));
+  document.getElementById('sheetNext').addEventListener('click', () => switchSheetBy(1));
+}
 
 // Глобальный перехват: runtime-ошибки и необработанные промисы.
 window.addEventListener('error', e => {
