@@ -1,7 +1,7 @@
 // Service worker «Живого блокнота»: app shell в кэше, network-first.
 // Все пути относительные: приложение живёт в подкаталоге (/livenotepad/ на Pages).
 const CACHE_PREFIX = 'livenotepad-';
-const CACHE = CACHE_PREFIX + 'v3';
+const CACHE = CACHE_PREFIX + 'v4';
 
 const ASSETS = [
   './',
@@ -17,6 +17,7 @@ const ASSETS = [
   './js/due-state.js',
   './js/live-sheet.js',
   './js/branches.js',
+  './js/sheets.js',
   './js/note-edit.js',
   './js/gestures.js',
   './js/dedup.js',

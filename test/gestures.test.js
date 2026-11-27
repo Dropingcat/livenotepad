@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { GESTURE, resolveTouchAction, resolveMouseAction, placeMenu } from '../www/js/gestures.js';
+import { GESTURE, resolveTouchAction, resolveMouseAction, placeMenu, resolveSheetSwipe } from '../www/js/gestures.js';
 
 test('касание: тап 120 мс — toggle', () => {
   assert.equal(resolveTouchAction({ dx: 0, dy: 0, durationMs: 120 }), 'toggle');
@@ -112,4 +112,28 @@ test('меню: значения по умолчанию gap=10 и edge=8', () =
   assert.equal(left, 8);
   assert.equal(top, 110);
   assert.equal(placeMenu({ x: 100, y: 795, vw: 400, vh: 800, menuW: 200, menuH: 300 }).top, 795 - 10 - 300);
+});
+
+test('sheetSwipe: −40 → next, +40 → prev, −39 → none', () => {
+  assert.equal(resolveSheetSwipe({ dx: -40, dy: 0 }), 'next');
+  assert.equal(resolveSheetSwipe({ dx: 40, dy: 0 }), 'prev');
+  assert.equal(resolveSheetSwipe({ dx: -39, dy: 0 }), 'none');
+});
+
+test('sheetSwipe: diagonal equal → none', () => {
+  assert.equal(resolveSheetSwipe({ dx: -40, dy: -40 }), 'none');
+  assert.equal(resolveSheetSwipe({ dx: 40, dy: 40 }), 'none');
+});
+
+test('sheetSwipe: vertical → none', () => {
+  assert.equal(resolveSheetSwipe({ dx: 0, dy: -60 }), 'none');
+  assert.equal(resolveSheetSwipe({ dx: 0, dy: 60 }), 'none');
+});
+
+test('sheetSwipe: defaults → none', () => {
+  assert.equal(resolveSheetSwipe(), 'none');
+});
+
+test('sheetSwipe: invariant SWIPE_MIN > MOVE_THRESHOLD', () => {
+  assert.ok(GESTURE.SHEET_SWIPE_MIN > GESTURE.MOVE_THRESHOLD);
 });
