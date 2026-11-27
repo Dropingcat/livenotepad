@@ -2297,6 +2297,11 @@ window.addEventListener('beforeunload', () => {
       }
     }
     console.log('[INIT] Initialization complete');
+    // Capacitor native init (не блокирует, тихо падает если не нативное окно)
+    try {
+      const { initCapacitor } = await import('./js/capacitor.js');
+      await initCapacitor();
+    } catch (_) { /* ignore — не Capacitor */ }
   } catch (e) {
     console.error('[INIT] Initialization error:', e);
     Audit.error('db', e, { action: 'appInit' });
