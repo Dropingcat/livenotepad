@@ -14,6 +14,11 @@ const path = require('path');
 const ICONS_SRC = path.resolve(__dirname, '..', 'www', 'icons');
 const RES_DIR = path.resolve(__dirname, '..', 'android', 'app', 'src', 'main', 'res');
 
+// Android разрешает только [a-z0-9_.] в именах ресурсов, дефисы запрещены
+function androidName(filename) {
+  return filename.replace(/-/g, '_');
+}
+
 const iconMap = [
   { src: 'icon-48.png',  dest: 'mipmap-mdpi'    },
   { src: 'icon-96.png',  dest: 'mipmap-hdpi'    },
@@ -31,9 +36,10 @@ for (const { src, dest } of iconMap) {
   fs.mkdirSync(destDir, { recursive: true });
 
   if (fs.existsSync(srcPath)) {
-    const destPath = path.join(destDir, src);
+    const destName = androidName(src);
+    const destPath = path.join(destDir, destName);
     fs.copyFileSync(srcPath, destPath);
-    console.log(`  ✓ ${src} → ${dest}/`);
+    console.log(`  ✓ ${src} → ${dest}/${destName}`);
     copied++;
   } else {
     console.log(`  - ${src} → ${dest}/ (not found, skipping)`);

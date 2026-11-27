@@ -7,3 +7,7 @@ node_modules/
 Thumbs.db
 
 android/
+extension/js/
+extension/manifest.json
+extension/generate-icons.cjs
+dist/
