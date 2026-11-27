@@ -7,7 +7,9 @@
   "scripts": {
     "test": "node --test",
     "test:due": "node --test test/due-parser.test.js",
-    "dev": "node scripts/serve.js"
+    "dev": "node scripts/serve.js",
+    "build:android": "node scripts/generate-android-resources.cjs && npx cap copy && npx cap sync",
+    "open:android": "npx cap open android"
   },
   "dependencies": {
     "@capacitor/android": "^8.6.3",
