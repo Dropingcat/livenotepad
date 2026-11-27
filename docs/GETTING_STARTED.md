@@ -32,7 +32,7 @@
 ```bash
 npm install      # один раз
 npm run dev      # http://localhost:8080
-npm test         # 242 теста
+npm test         # 362 теста
 ```
 
 `localhost` — тоже защищённый контекст, поэтому установка PWA и полный функционал доступны и там.

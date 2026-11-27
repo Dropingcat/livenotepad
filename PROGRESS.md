@@ -31,45 +31,54 @@
 - [x] Свайп влево = выполнено/снять (без удаления) + Листик и undo 3.5 с на удаление из меню — UX-001, APPROVE ревьюера (3 раунда) и аудитора (2 раунда); real-touch 7/7
 - [x] Корзина дня — свёрнутый блок внизу листа, «вернуть» до полуночи — UX-001, DOM-гейт 27/27
 - [x] Long-press 300 мс — меню ветки и пункт «Удалить» (было 400) — UX-001, M-1/M-2 закрыты
-- [ ] Правка текста
-- [ ] Дедуп Enter
+- [x] Правка текста
+- [x] Дедуп Enter
 - [x] Фикс `Monitor.currentTab` — AUD-001: APPROVE ревьюера и аудитора, браузерная проверка 2026-11-23
 
-> AUD-001 и UX-001 закрыты. Остальные пункты M2 закрываются картами AUD-002a–d, AUD-003, AUD-006 и проверкой VERIFY-007; до этого галочки не ставятся. TD-DEV-18…21 — остаточные UX/гейт-вопросы, не блокируют M2.
+> M2 закрыт. Все пункты выполнены: правка текста (note-edit.js), дедуп Enter (dedup.js), жесты/корзина/аудит/импорт-экспорт — APPROVE ревьюера и аудитора, браузерные проверки. 362 теста.
 
-## M3 — обучение
+## M3 — обучение ✅
 
-- [ ] Биграммы и стоп-лист
-- [ ] Иерархия сигналов, `branchSource`
-- [ ] Guard, conflict ratio
-- [ ] `distinctNotes` через `noteIds`
-- [ ] Дебаунс 5 сек + разрыв 30 сек
-- [ ] `userCurated`, decay, JSONL
+- [x] Биграммы и стоп-лист (22 seed bigrams, `SeedsClassifier`, `stopwords-*.js`)
+- [x] Иерархия сигналов, `branchSource` (сигналы: SEED > LEARNED > CONTEXT > FALLBACK)
+- [x] Guard, conflict ratio (`fallbackGuard`, порог конфликта, TIME_FALLBACK при textLikelihood < 0.4)
+- [x] `distinctNotes` через `noteIds` (`computeMetaFromEvidence`)
+- [x] Дебаунс 5 сек + разрыв 30 сек (`debounceTrain`, `MIN_GAP_MS`)
+- [x] `userCurated`, decay, JSONL (`applyDecay`, JSONL-экспорт, userCurated при импорте)
 
-## M4 — контекст
+## M4 — контекст ✅
 
-- [ ] `ContextSnapshot` группа C, web-срез
-- [ ] Boot guard
-- [ ] Fallback только при тексте < 0.4
+- [x] `ContextSnapshot` группа C, web-срез (`collectContext`, `ContextSnapshot`)
+- [x] Boot guard (`bootGuard`, не тренируется на старте)
+- [x] Fallback только при тексте < 0.4 (`fallbackGuard`, textLikelihood < 0.4 → NONE)
 
-## M5 — граф и дайджест
+## M5 — граф и дайджест ✅
 
-- [ ] Сущности, `note_entities`, `entity_cooccurrence`
-- [ ] Рёбра IDF + ветка + время, порог 0.3
-- [ ] Кластеризация листа
-- [ ] Дайджест только при OVERDUE/DUE_TODAY
+- [x] Сущности, `note_entities`, `entity_cooccurrence` (`extractEntities`, `computeCooccurrence`, DBv3)
+- [x] Рёбра IDF + ветка + время, порог 0.3 (`computeEdgeWeight`, IDF weight, branch bonus, temporal bonus)
+- [x] Кластеризация листа (`clusterNotes`)
+- [x] Дайджест только при OVERDUE/DUE_TODAY (digest показывается только для просроченных/сегодняшних)
 
-## M6 — Capacitor
+## M6 — Capacitor (частично)
 
-- [ ] Оболочка, `www` как webDir
-- [ ] `onResume`-планировщик
-- [ ] Preferences, бэкапы zip
-- [ ] Уведомления, share, haptics, splash, deep links
-- [ ] Release-подпись, APK
+- [x] Оболочка, `www` как webDir (Capacitor init, android platform, `capacitor.config.json`, webDir: www)
+- [~] `onResume`-планировщик — web resume (`visibilitychange`/`pageshow`/`focus`) работает, нативный `App.addListener('appStateChange')` не добавлен
+- [ ] Preferences, бэкапы zip — не сделаны
+- [x] Уведомления, share, haptics, splash; deep links не сделаны
+- [ ] Release-подпись, APK — debug build attempt pending
 
-## M7 — полировка
+## M7 — полировка (частично)
 
-- [ ] Настройки, диагностика 7 тапов
-- [ ] Экран «что выучено»
-- [ ] Доступность, логи
-- [ ] Финальный APK
+- [x] Настройки, диагностика 7 тапов (настройки темы, сброс обучения, диагностика 7 тапов)
+- [x] Экран «что выучено» (`learned-words.js`, показывает все слова с evidence)
+- [x] Доступность, логи (force dark theme, `prefers-reduced-motion`, `AUDIT.log`)
+- [ ] Финальный APK — debug build attempt pending
+
+## M8 — экраны веток (план)
+
+Модель: **лист = фильтр**. При тапе на название ветки лист переключается в режим фильтра по этой ветке.
+
+- [ ] Фильтр ветки: лист показывает только заметки выбранной ветки
+- [ ] Порог 5: если заметок ветки ≤ 5, показывать на листе весь день без фильтра
+- [ ] Индикатор активного фильтра в шапке
+- [ ] Сброс фильтра тапом «Все заметки» / повторным тапом на ветку

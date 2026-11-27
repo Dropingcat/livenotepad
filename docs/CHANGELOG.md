@@ -1,6 +1,26 @@
 # Изменения
 
-## 2026-11-23 — M0/M1/M2
+## 2026-11-27 — M3/M4/M5/M6/M7
+
+### M3 — обучение (362 теста)
+- **M3-001** — noteIds, decay, JSONL (77b8530): `distinctNotes` через `noteIds`, `applyDecay`, JSONL-экспорт при импорте.
+- **M3-002** — JSONL export, 22 seed bigrams (9930d5c): `SeedsClassifier`, 22 seed bigrams, `fallbackGuard`, `computeMetaFromEvidence`.
+- **M3 complete** — thresholds, guard (9f6cc4c): иерархия сигналов (SEED > LEARNED > CONTEXT > FALLBACK), `branchSource`, дебаунс 5 с, разрыв 30 с, conflict ratio.
+
+### M4 — контекст
+- **M4-001** — ContextSnapshot, boot guard (ae2519d): `collectContext` группа C, web-срез, `bootGuard`, fallback только при textLikelihood < 0.4.
+
+### M5 — граф и дайджест
+- **M5-001** — entities, cooccurrence, DBv3 (22c7536): `extractEntities`, `computeCooccurrence`, `note_entities`, `entity_cooccurrence`, миграция DBv3.
+- **M5-002** — IDF, clustering, digest (ad6d0fb): `computeEdgeWeight` (IDF + ветка + время, порог 0.3), `clusterNotes`, дайджест только при OVERDUE/DUE_TODAY.
+
+### M6 — Capacitor
+- **M6-001** — Capacitor init, plugins (fc07a35): оболочка, `www` как webDir, android platform, `capacitor.config.json`, native bridge.
+- **M6-002** — share, haptics, notifications (5e16ec9): share menu, haptics, overdue notifications, splash screen.
+- **M6-003** — icons, splash, build script: иконки, splash-экран, скрипт сборки Capacitor.
+
+### M7 — полировка
+- **M7-001** — settings, accessibility, force dark (88e732d): настройки темы, диагностика 7 тапов, экран «что выучено», `prefers-reduced-motion`, force dark theme, `AUDIT.log`.
 
 ### M0 — фундамент
 - `www/index.html` из `блокнот_0_7.html`.
