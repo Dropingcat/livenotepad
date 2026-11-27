@@ -7,7 +7,8 @@ export const GESTURE = Object.freeze({
   TAP_MAX_MS: 300,
   MOVE_THRESHOLD: 8,
   SWIPE_MIN: 60,
-  SWIPE_MAX: 150
+  SWIPE_MAX: 150,
+  SHEET_SWIPE_MIN: 40
 });
 
 /**
@@ -53,4 +54,15 @@ export function placeMenu({ x, y, vw, vh, menuW, menuH, gap = 10, edge = 8 }) {
   if (top + menuH > vh - edge) top = y - menuH - gap;   // раскрыть вверх
   top = Math.max(edge, Math.min(top, vh - menuH - edge));
   return { left, top };
+}
+
+/**
+ * Намерение по свайпу по полоске листов.
+ * @param {{dx?: number, dy?: number}} [input]
+ * @returns {'prev'|'next'|'none'}
+ */
+export function resolveSheetSwipe({ dx = 0, dy = 0 } = {}) {
+  const ax = Math.abs(dx), ay = Math.abs(dy);
+  if (ax < GESTURE.SHEET_SWIPE_MIN || ax <= ay) return 'none';
+  return dx < 0 ? 'next' : 'prev';
 }
